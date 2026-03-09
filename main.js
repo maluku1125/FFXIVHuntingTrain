@@ -925,7 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const startBtn = document.getElementById('btn-start-train');
-        startBtn.innerText = '儲存路線中...';
+        startBtn.innerText = '發車!';
         startBtn.disabled = true;
 
         try {

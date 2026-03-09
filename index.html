@@ -133,7 +133,7 @@
                             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.5rem;">
                             <h3 style="margin: 0; white-space: nowrap; flex-shrink: 0;">點位清單</h3>
                             <button id="btn-start-train" class="btn-accent" disabled
-                                style="flex: 1; min-width: 100px;">開始發車</button>
+                                style="flex: 1; min-width: 100px;">出發</button>
                         </div>
                         <ul id="points-list" class="points-list vertical-scroller" style="flex: 1;">
                             <!-- Points will be injected here -->
@@ -251,7 +251,7 @@
                 </div>
                 <div class="input-group" style="margin-top: 1.5rem;">
                     <label style="display:block; margin-bottom:0.5rem; color:var(--text-secondary);">狩獵版本 (可複選)</label>
-                    <div style="display: flex; gap: 1rem;" id="version-checkboxes">
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;" id="version-checkboxes">
                         <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox" value="7.0"
                                 checked> 7.0</label>
                         <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox" value="6.0">
