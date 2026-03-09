@@ -1,0 +1,1239 @@
+import { supabase } from './supabaseConfig.js';
+import { gameData } from './gameData.js';
+
+// Add simple HTML escaping function to prevent XSS
+function escapeHTML(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/[&<>'"]/g,
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
+}
+
+// ============================================================
+// State
+// ============================================================
+let currentUser = null;
+let currentRole = 'user';
+let currentRoomId = null;
+let currentRoomSubscription = null;
+let scoutingPoints = [];
+let currentPointIndex = -1;
+let isAdmin = false;
+let countdownInterval = null;
+let homeRefreshInterval = null; // for auto-refresh lobby every 5s
+
+// ============================================================
+// DOM references (resolved after DOMContentLoaded)
+// ============================================================
+let views, navBtns, modals;
+
+// ============================================================
+// View routing
+// ============================================================
+function switchView(viewName) {
+    Object.values(views).forEach(v => {
+        v.classList.toggle('hidden', v !== views[viewName]);
+        v.classList.toggle('section-active', v === views[viewName]);
+    });
+
+    if (viewName === 'home') {
+        fetchRooms();
+        // Auto-refresh room list every 5 seconds while on home view
+        if (homeRefreshInterval) clearInterval(homeRefreshInterval);
+        homeRefreshInterval = setInterval(fetchRooms, 5000);
+    } else {
+        // Stop polling when not on home view
+        if (homeRefreshInterval) {
+            clearInterval(homeRefreshInterval);
+            homeRefreshInterval = null;
+        }
+    }
+}
+
+// ============================================================
+// Auth UI
+// ============================================================
+function updateAuthUI() {
+    const loggedIn = !!currentUser;
+    navBtns.login.classList.toggle('hidden', loggedIn);
+    navBtns.logout.classList.toggle('hidden', !loggedIn);
+    const createBtn = document.getElementById('btn-open-create-modal');
+    if (createBtn) createBtn.classList.toggle('hidden', !loggedIn);
+}
+
+// ============================================================
+// Session initialisation (called once on load)
+// ============================================================
+async function init() {
+    try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) console.error('[init] getSession error:', error);
+
+        if (session) {
+            currentUser = session.user;
+            currentRole = 'conductor';
+            try {
+                const { data } = await supabase
+                    .from('admins').select('id').eq('id', currentUser.id).maybeSingle();
+                isAdmin = !!data;
+            } catch (e) { console.warn('[init] admins check failed:', e); }
+
+            updateAuthUI();
+
+            try {
+                await checkAndResumeConductorRoom();
+            } catch (e) { console.warn('[init] checkAndResumeConductorRoom failed:', e); }
+        }
+    } catch (e) {
+        console.error('[init] unexpected error:', e);
+    } finally {
+        // Always fetch rooms — even if session check or room resume threw
+        fetchRooms();
+        // Start auto-refresh for home view
+        if (homeRefreshInterval) clearInterval(homeRefreshInterval);
+        homeRefreshInterval = setInterval(fetchRooms, 5000);
+    }
+}
+
+// ============================================================
+// Conductor room resume (F5 / page reload)
+// ============================================================
+async function checkAndResumeConductorRoom() {
+    if (!currentUser) return;
+
+    const { data: activeRoom, error } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('conductor_id', currentUser.id)
+        .eq('is_active', true)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle();
+
+    if (error) { console.warn('[checkAndResumeConductorRoom]', error); return; }
+    if (!activeRoom) return;
+
+    currentRoomId = activeRoom.id;
+    document.getElementById('conductor-dashboard-title').innerText = `車長後台 - ${activeRoom.name}`;
+    document.getElementById('btn-close-room').classList.remove('hidden');
+
+    const { data: points } = await supabase
+        .from('points').select('*')
+        .eq('room_id', currentRoomId)
+        .order('step_order', { ascending: true });
+
+    if (points && points.length > 0) {
+        scoutingPoints = points.map(pt => ({
+            id: pt.id, version: pt.point_version, mapName: pt.map_name,
+            monster: pt.monster, rank: pt.monster_rank, x: pt.x, y: pt.y
+        }));
+        currentPointIndex = activeRoom.current_point_index ?? 0;
+
+        document.getElementById('conductor-scouting').classList.add('hidden');
+        document.getElementById('conductor-active').classList.remove('hidden');
+        updateActivePhaseUI();
+    } else {
+        const saved = localStorage.getItem('draft_points_' + currentRoomId);
+        scoutingPoints = saved ? JSON.parse(saved) : [];
+        currentPointIndex = -1;
+        document.getElementById('conductor-active').classList.add('hidden');
+        document.getElementById('conductor-scouting').classList.remove('hidden');
+        window.renderScoutingPoints();
+    }
+
+    switchView('conductor');
+}
+
+// ============================================================
+// Room list (home lobby)
+// ============================================================
+async function fetchRooms() {
+    const container = document.getElementById('room-list-container');
+    if (!container) return;
+
+    // Only show loading on first fetch (avoid flickering on auto-refresh)
+    if (container.innerHTML.trim() === '' || container.querySelector('.empty-state')?.innerText === '載入中...') {
+        container.innerHTML = '<div class="empty-state">載入中...</div>';
+    }
+
+    try {
+        // Fetch public rooms + conductor's own rooms in parallel
+        const publicQuery = supabase.from('rooms').select('*')
+            .eq('is_active', true).eq('is_published', true)
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false });
+
+        const myQuery = currentUser
+            ? supabase.from('rooms').select('*')
+                .eq('conductor_id', currentUser.id)
+                .eq('is_active', true)
+                .gt('expires_at', new Date().toISOString())
+                .order('created_at', { ascending: false })
+            : Promise.resolve({ data: [] });
+
+        const [{ data: publicRooms, error: pubErr }, { data: myRooms }] =
+            await Promise.all([publicQuery, myQuery]);
+
+        if (pubErr) {
+            container.innerHTML = `<div class="empty-state">無法載入房間（${pubErr.message}）</div>`;
+            console.error('[fetchRooms] public:', pubErr);
+            return;
+        }
+
+        let rooms = publicRooms ? [...publicRooms] : [];
+        (myRooms || []).forEach(r => {
+            if (!rooms.find(pub => pub.id === r.id)) rooms.unshift(r);
+        });
+
+        if (rooms.length === 0) {
+            container.innerHTML = '<div class="empty-state">目前沒有開啟的房間</div>';
+            return;
+        }
+
+        // Fetch point counts for all rooms in a single query
+        const roomIds = rooms.map(r => r.id);
+        const { data: allPoints } = await supabase
+            .from('points').select('room_id')
+            .in('room_id', roomIds);
+
+        const pointCountMap = {};
+        (allPoints || []).forEach(p => {
+            pointCountMap[p.room_id] = (pointCountMap[p.room_id] || 0) + 1;
+        });
+
+        container.innerHTML = '';
+        rooms.forEach(room => renderRoomCard(container, room, pointCountMap[room.id] || 0));
+
+        // Run countdown update immediately to avoid showing "讀取時間中..." for 1 second
+        updateCountdowns();
+
+        // Keep updating every second
+        if (countdownInterval) clearInterval(countdownInterval);
+        countdownInterval = setInterval(updateCountdowns, 1000);
+
+    } catch (err) {
+        container.innerHTML = `<div class="empty-state">載入房間時發生錯誤：${err.message}</div>`;
+        console.error('[fetchRooms] unexpected:', err);
+    }
+}
+
+function updateCountdowns() {
+    document.querySelectorAll('.countdown-timer').forEach(el => {
+        const diff = new Date(el.dataset.expires) - Date.now();
+        if (diff > 0) {
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            el.innerText = `剩餘時間: ${h}時${m}分${s}秒`;
+        } else {
+            el.innerText = '已過期 (清理中)';
+        }
+    });
+}
+
+function renderRoomCard(container, room, totalPoints) {
+    const isMine = currentUser && room.conductor_id === currentUser.id;
+
+    // Progress display
+    let progressHTML = '';
+    if (!room.is_published) {
+        progressHTML = '<span style="color:var(--text-secondary);font-size:0.85rem;">找點階段</span>';
+    } else if (totalPoints === 0) {
+        progressHTML = '<span style="color:var(--text-secondary);font-size:0.85rem;">準備發車</span>';
+    } else {
+        const idx = room.current_point_index ?? -1;
+        const displayed = idx < 0 ? 0 : idx + 1;
+        progressHTML = `<span style="color:var(--acc-accent);font-size:0.85rem;font-weight:bold;">第 ${displayed} / ${totalPoints} 站</span>`;
+    }
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
+            <h3 style="margin:0;">${escapeHTML(room.name)}
+                ${isMine ? '<span style="color:var(--acc-accent);font-size:0.7rem;vertical-align:top;margin-left:4px;">(我的車)</span>' : ''}
+                ${isAdmin && !isMine ? '<span style="color:var(--acc-danger);font-size:0.7rem;vertical-align:top;">(Admin)</span>' : ''}
+            </h3>
+            <div>
+                ${room.version ? `<span style="background:var(--acc-primary);color:white;padding:0.2rem 0.6rem;border-radius:12px;font-size:0.8rem;font-weight:bold;">${escapeHTML(room.version)}</span>` : ''}
+                ${room.server ? `<span class="server-badge">${escapeHTML(room.server)}</span>` : ''}
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:0.3rem;">
+            ${progressHTML}
+            ${room.is_published ? '' : '<span style="color:var(--acc-danger);font-size:0.8rem">[未發布]</span>'}
+        </div>
+        <p style="color:var(--text-secondary);font-size:0.8rem;margin:0.2rem 0;">房間 ID：${room.id.substring(0, 6)}...</p>
+        <p class="countdown-timer" data-expires="${room.expires_at}" style="color:var(--acc-danger);font-weight:bold;margin-top:0.4rem;">讀取時間中...</p>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            ${!isMine ? `<button class="btn-primary" style="margin-top:1rem" onclick="window.joinRoom('${room.id}','${room.name}')">加入房間</button>` : ''}
+            ${isAdmin ? `<button class="btn-danger" style="margin-top:1rem" onclick="window.forceCloseRoom('${room.id}')">強制關閉</button>` : ''}
+            ${isMine ? `<button class="btn-accent" style="margin-top:1rem" onclick="window.rejoinAsConductor('${room.id}','${room.name}',${!!room.is_published})">加入房間（車長）</button>` : ''}
+        </div>
+    `;
+    container.appendChild(card);
+}
+
+// ============================================================
+// Active phase UI (conductor)
+// ============================================================
+function updateActivePhaseUI() {
+    const isPrep = currentPointIndex < 0;
+    const pt = isPrep
+        ? { mapName: '準備發車中...', monster: '請等待車長廣播第一站', rank: '', x: '-', y: '-', version: '' }
+        : scoutingPoints[currentPointIndex] || { mapName: '--', monster: '--', rank: '', x: '--', y: '--' };
+
+    document.getElementById('active-map-name').innerText = pt.mapName;
+
+    const rankEl = document.getElementById('active-rank');
+    if (pt.rank && pt.rank !== '水晶' && !isPrep) {
+        rankEl.innerText = `${pt.rank}怪`;
+        rankEl.style.display = 'inline-block';
+    } else {
+        rankEl.style.display = 'none';
+    }
+
+    document.getElementById('active-monster').innerText = pt.monster;
+    document.getElementById('active-x').innerText = pt.x;
+    document.getElementById('active-y').innerText = pt.y;
+
+    const total = scoutingPoints.length;
+    const displayedIndex = isPrep ? 0 : currentPointIndex + 1;
+    document.getElementById('progress-text').innerText = `${displayedIndex}/${total}`;
+
+    // Next button
+    const nextBtn = document.getElementById('btn-next-point');
+    const finished = currentPointIndex >= total - 1;
+    nextBtn.innerText = finished ? '行程結束' : (isPrep ? '開始第一站' : '廣播下個點位');
+    nextBtn.style.opacity = '1';
+    nextBtn.disabled = false;
+
+    // Prev button
+    const prevBtn = document.getElementById('btn-prev-point');
+    prevBtn.disabled = currentPointIndex <= 0;
+    prevBtn.style.opacity = currentPointIndex <= 0 ? '0.5' : '1';
+
+    // Update Macro Values (Dynamic Replacements)
+    const templates = [1, 2, 3, 4, 5].map(i => {
+        let t = localStorage.getItem('custom_macro_' + i);
+        if (t === null && i === 1) t = '/sh 下一站為： <map> <target> 座標：<pos>';
+        if (t === null && i === 2) t = '/y 下一站為： <map> <target> 座標：<pos>';
+        return t || '';
+    });
+
+    [1, 2, 3, 4, 5].forEach((num, index) => {
+        const el = document.getElementById('macro-line-' + num);
+        let text = templates[index];
+        if (isPrep || finished) {
+            text = (num === 1 || num === 2) ? (text ? '/sh 等待車長廣播開始' : '') : text;
+        } else if (text) {
+            const rankStr = pt.rank && pt.rank !== '水晶' ? `${pt.rank}怪 ` : '';
+            const targetStr = pt.rank === '水晶' ? pt.monster : `${rankStr}${pt.monster}`;
+            const posStr = `(X:${pt.x}, Y:${pt.y})`;
+
+            text = text.replace(/<map>/g, pt.mapName || '')
+                .replace(/<target>/g, targetStr || '')
+                .replace(/<pos>/g, posStr || '');
+        }
+        el.value = text;
+    });
+
+    // Populate Points List
+    const listEl = document.getElementById('active-points-list');
+    if (listEl) {
+        listEl.innerHTML = '';
+        scoutingPoints.forEach((p, i) => {
+            const li = document.createElement('li');
+            li.style.display = 'flex';
+            li.style.flexDirection = 'column';
+            li.style.marginBottom = '0.6rem';
+            li.style.padding = '0.8rem 1rem';
+            li.style.borderRadius = '8px';
+
+            if (i === currentPointIndex) {
+                li.style.background = 'rgba(255, 255, 255, 0.15)'; // Highlight active
+                li.style.borderLeft = '4px solid var(--acc-accent)';
+            } else {
+                li.style.background = 'rgba(255, 255, 255, 0.03)';
+                li.style.borderLeft = '4px solid transparent';
+            }
+
+            if (i < currentPointIndex) {
+                li.style.opacity = '0.4';
+            }
+
+            li.innerHTML = `
+                <div style="font-weight: bold; margin-bottom: 0.4rem; line-height: 1.4;">
+                    <div style="margin-bottom: 0.2rem;">${i + 1}. <span style="color:var(--acc-primary)">[${escapeHTML(p.version)}]</span> ${escapeHTML(p.mapName)} - </div>
+                    <div>
+                        ${p.rank && p.rank !== '水晶' ? `<span style="color:var(--acc-danger);">${escapeHTML(p.rank)}怪</span>` : ''} 
+                        ${escapeHTML(p.monster)}
+                    </div>
+                </div>
+                <div style="color:var(--text-secondary); font-size: 0.85rem;">X:${escapeHTML(p.x)} Y:${escapeHTML(p.y)}</div>
+            `;
+            if (i === currentPointIndex) li.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            listEl.appendChild(li);
+        });
+    }
+
+    // Populate Map Image & Ping overlay
+    const activeMapImg = document.getElementById('active-map-img');
+    const activeMapData = gameData[pt.version]?.[pt.mapName];
+    if (activeMapData && activeMapData.mapImage) {
+        activeMapImg.src = activeMapData.mapImage;
+        activeMapImg.style.display = 'block';
+
+        let ping = activeMapImg.parentElement.querySelector('.destination-ping');
+        if (!ping) {
+            ping = document.createElement('div');
+            ping.className = 'destination-ping';
+            activeMapImg.parentElement.appendChild(ping);
+        }
+        let x = parseFloat(pt.x), y = parseFloat(pt.y);
+        ping.style.left = (((x - 1) / 41) * 100) + '%';
+        ping.style.top = (((y - 1) / 41) * 100) + '%';
+    } else {
+        if (activeMapImg) activeMapImg.style.display = 'none';
+        const oldPing = activeMapImg?.parentElement?.querySelector('.destination-ping');
+        if (oldPing) oldPing.remove();
+    }
+}
+
+// ============================================================
+// Scouting points list
+// ============================================================
+window.renderScoutingPoints = () => {
+    const list = document.getElementById('points-list');
+    list.innerHTML = '';
+    scoutingPoints.forEach((pt, index) => {
+        const li = document.createElement('li');
+        li.style.display = 'flex';
+        li.style.justifyContent = 'space-between';
+        li.style.alignItems = 'center';
+        li.style.marginBottom = '0.6rem';
+        li.style.background = 'rgba(255, 255, 255, 0.03)';
+        li.style.padding = '0.8rem 1rem';
+        li.style.borderRadius = '8px';
+
+        li.innerHTML = `
+                <div style="flex: 1; padding-right: 0.5rem;">
+                    <div style="font-weight: bold; margin-bottom: 0.4rem; line-height: 1.4;">
+                        <div style="margin-bottom: 0.2rem;">${index + 1}. <span style="color:var(--acc-primary)">[${escapeHTML(pt.version)}]</span> ${escapeHTML(pt.mapName)} - </div>
+                        <div>
+                            ${pt.rank && pt.rank !== '水晶' ? `<span style="color:var(--acc-danger);">${escapeHTML(pt.rank)}怪</span>` : ''} 
+                            ${escapeHTML(pt.monster)}
+                        </div>
+                    </div>
+                    <div style="color:var(--text-secondary); font-size: 0.85rem;">X:${escapeHTML(pt.x)} Y:${escapeHTML(pt.y)}</div>
+                </div>
+                <button class="btn-danger" style="padding: 0.5rem; font-size: 0.85rem; border-radius: 6px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 36px; height: 46px; line-height: 1.2;" onclick="window.removePoint(${pt.id})">
+                    <span>刪</span><span>除</span>
+                </button>
+            `;
+        list.appendChild(li);
+    });
+    document.getElementById('btn-start-train').disabled = scoutingPoints.length === 0;
+};
+
+window.removePoint = (id) => {
+    scoutingPoints = scoutingPoints.filter(p => p.id !== id);
+    localStorage.setItem('draft_points_' + currentRoomId, JSON.stringify(scoutingPoints));
+    window.renderScoutingPoints();
+};
+
+// ============================================================
+// Global room actions
+// ============================================================
+window.joinRoom = async (roomId, roomName) => {
+    if (currentRoomSubscription) {
+        await supabase.removeChannel(currentRoomSubscription);
+        currentRoomSubscription = null;
+    }
+
+    currentRoomId = roomId;
+    document.getElementById('user-room-title').innerText = roomName;
+    switchView('userRoom');
+
+    // 1) Reset Visitor UI immediately upon entering
+    document.getElementById('map-placeholder').innerText = '正在同步車長進度...';
+    document.getElementById('coord-map-name').innerText = '載入中...';
+    document.getElementById('coord-monster').innerText = '--';
+    document.getElementById('coord-x').innerText = '-';
+    document.getElementById('coord-y').innerText = '-';
+    document.getElementById('coord-version').style.display = 'none';
+    document.getElementById('coord-rank').style.display = 'none';
+
+    const userMapImg = document.getElementById('current-map-img');
+    userMapImg.style.display = 'none';
+    document.getElementById('map-placeholder').style.display = 'block';
+    const existingPing = userMapImg.parentElement.querySelector('.destination-ping');
+    if (existingPing) existingPing.remove();
+
+    // 2) Fetch points and room details concurrently
+    const [{ data: points }, { data: roomData }] = await Promise.all([
+        supabase.from('points').select('*').eq('room_id', roomId).order('step_order', { ascending: true }),
+        supabase.from('rooms').select('current_point_index, is_active').eq('id', roomId).single()
+    ]);
+
+    const updateListenerUI = (index) => {
+        const point = points && points[index];
+        if (index < 0 || !point) return;
+
+        document.getElementById('coord-version').innerText = `[${point.point_version}]`;
+        document.getElementById('coord-version').style.display = 'inline-block';
+
+        const rankEl = document.getElementById('coord-rank');
+        if (rankEl) {
+            if (point.monster_rank && point.monster_rank !== '水晶') {
+                rankEl.innerText = `${point.monster_rank}怪`;
+                rankEl.style.display = 'inline-block';
+            } else {
+                rankEl.style.display = 'none';
+            }
+        }
+
+        document.getElementById('coord-map-name').innerText = point.map_name;
+        document.getElementById('coord-monster').innerText = point.monster;
+        document.getElementById('coord-x').innerText = point.x;
+        document.getElementById('coord-y').innerText = point.y;
+        document.getElementById('map-placeholder').innerText = `${point.map_name} / ${point.monster}`;
+
+        // Update User Map Ping
+        if (gameData[point.point_version]?.[point.map_name]?.mapImage) {
+            userMapImg.src = gameData[point.point_version][point.map_name].mapImage;
+            userMapImg.style.display = 'block';
+            document.getElementById('map-placeholder').style.display = 'none';
+            userMapImg.parentElement.style.position = 'relative';
+
+            let ping = userMapImg.parentElement.querySelector('.destination-ping');
+            if (!ping) {
+                ping = document.createElement('div');
+                ping.className = 'destination-ping';
+                userMapImg.parentElement.appendChild(ping);
+            }
+            const leftPct = ((point.x - 1) / 41) * 100;
+            const topPct = ((point.y - 1) / 41) * 100;
+            ping.style.left = leftPct + '%';
+            ping.style.top = topPct + '%';
+        } else {
+            userMapImg.style.display = 'none';
+            document.getElementById('map-placeholder').style.display = 'block';
+            const oldPing = userMapImg.parentElement.querySelector('.destination-ping');
+            if (oldPing) oldPing.remove();
+        }
+
+        const cd = document.querySelector('.coord-display');
+        cd.classList.remove('updating');
+        void cd.offsetWidth;
+        cd.classList.add('updating');
+    };
+
+    // 3) Apply initial state from database
+    if (roomData != null) {
+        if (roomData.is_active === false) {
+            alert('此班車已經結束囉，請尋找其他班車。');
+            document.getElementById('btn-leave-room').click();
+            return;
+        }
+
+        const idx = roomData.current_point_index;
+        if (idx >= 0) {
+            updateListenerUI(idx);
+        } else {
+            // Index < 0 -> prep phase
+            const hasPoints = points && points.length > 0;
+            document.getElementById('map-placeholder').innerText = hasPoints ? '列車就緒，等待車長廣播第一站...' : '目前車長還在找點中，請稍候。';
+            document.getElementById('coord-map-name').innerText = '準備發車中...';
+            document.getElementById('coord-monster').innerText = '--';
+            document.getElementById('coord-x').innerText = '-';
+            document.getElementById('coord-y').innerText = '-';
+        }
+    }
+
+    // Subscribe to conductor's point advances via Realtime
+    // NOTE: requires `ALTER TABLE public.rooms REPLICA IDENTITY FULL` in SQL
+    currentRoomSubscription = supabase
+        .channel(`room-${roomId}`)
+        .on('postgres_changes',
+            { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
+            async (payload) => {
+                const isActive = payload.new.is_active;
+                if (isActive === false) {
+                    alert('車長已結束此班車，感謝搭乘！');
+                    document.getElementById('btn-leave-room').click();
+                    return;
+                }
+
+                const newIndex = payload.new.current_point_index;
+
+                // If no points yet (conductor was still scouting), re-fetch
+                if (!points || points.length === 0) {
+                    const { data: fresh } = await supabase
+                        .from('points').select('*')
+                        .eq('room_id', roomId).order('step_order', { ascending: true });
+                    if (fresh && fresh.length > 0) {
+                        points.length = 0;
+                        points.push(...fresh);
+                        if (newIndex >= 0) {
+                            document.getElementById('map-placeholder').innerText = '同步完成，發車中！';
+                        }
+                    }
+                }
+
+                if (newIndex < 0) {
+                    document.getElementById('map-placeholder').innerText = '列車就緒，等待車長廣播第一站...';
+                    document.getElementById('coord-map-name').innerText = '準備發車中...';
+                    document.getElementById('coord-monster').innerText = '--';
+                    document.getElementById('coord-x').innerText = '-';
+                    document.getElementById('coord-y').innerText = '-';
+                    document.getElementById('coord-version').style.display = 'none';
+                    document.getElementById('coord-rank').style.display = 'none';
+
+                    const userMapImg = document.getElementById('current-map-img');
+                    userMapImg.style.display = 'none';
+                    document.getElementById('map-placeholder').style.display = 'block';
+                    const oldPing = userMapImg.parentElement.querySelector('.destination-ping');
+                    if (oldPing) oldPing.remove();
+                } else {
+                    updateListenerUI(newIndex);
+                }
+            }
+        )
+        .subscribe((status) => {
+            console.log('[Realtime] subscription status:', status);
+        });
+};
+
+window.rejoinAsConductor = async (roomId, roomName, isPublished) => {
+    currentRoomId = roomId;
+    document.getElementById('conductor-dashboard-title').innerText = `車長後台 - ${roomName}`;
+    document.getElementById('btn-close-room').classList.remove('hidden');
+    document.getElementById('checkbox-publish').checked = !!isPublished;
+
+    const [{ data: points }, { data: roomData }] = await Promise.all([
+        supabase.from('points').select('*').eq('room_id', roomId).order('step_order', { ascending: true }),
+        supabase.from('rooms').select('current_point_index').eq('id', roomId).single()
+    ]);
+
+    if (points && points.length > 0) {
+        scoutingPoints = points.map(pt => ({
+            id: pt.id, version: pt.point_version, mapName: pt.map_name,
+            monster: pt.monster, rank: pt.monster_rank, x: pt.x, y: pt.y
+        }));
+        currentPointIndex = roomData?.current_point_index ?? 0;
+
+        document.getElementById('conductor-scouting').classList.add('hidden');
+        document.getElementById('conductor-active').classList.remove('hidden');
+        updateActivePhaseUI();
+    } else {
+        const saved = localStorage.getItem('draft_points_' + roomId);
+        scoutingPoints = saved ? JSON.parse(saved) : [];
+        currentPointIndex = -1;
+        document.getElementById('conductor-active').classList.add('hidden');
+        document.getElementById('conductor-scouting').classList.remove('hidden');
+        window.renderScoutingPoints();
+        setTimeout(window.renderMapMarkers, 150);
+    }
+
+    switchView('conductor');
+};
+
+window.forceCloseRoom = async (id) => {
+    if (!confirm('【管理員】確定要強制關閉這組車隊嗎？')) return;
+    await supabase.from('rooms').update({ is_active: false }).eq('id', id);
+    fetchRooms();
+};
+
+// ============================================================
+// DOMContentLoaded — bind all UI events, then init
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    views = {
+        home: document.getElementById('view-home'),
+        userRoom: document.getElementById('view-user-room'),
+        conductor: document.getElementById('view-conductor'),
+    };
+    navBtns = {
+        home: document.getElementById('btn-home'),
+        login: document.getElementById('btn-login'),
+        logout: document.getElementById('btn-logout'),
+    };
+    modals = {
+        login: document.getElementById('login-modal'),
+        createRoom: document.getElementById('create-room-modal'),
+    };
+
+    // --- Navigation ---
+    navBtns.home.addEventListener('click', () => switchView('home'));
+    document.getElementById('btn-leave-room').addEventListener('click', async () => {
+        if (currentRoomSubscription) {
+            await supabase.removeChannel(currentRoomSubscription);
+            currentRoomSubscription = null;
+        }
+        currentRoomId = null;
+        switchView('home');
+        fetchRooms();
+    });
+
+    navBtns.login.addEventListener('click', () => modals.login.classList.remove('hidden'));
+    navBtns.logout.addEventListener('click', async () => {
+        await supabase.auth.signOut();
+        currentUser = null;
+        currentRole = 'user';
+        isAdmin = false;
+        updateAuthUI();
+        switchView('home');
+    });
+    document.getElementById('close-login').addEventListener('click', () =>
+        modals.login.classList.add('hidden'));
+
+    // --- Cascading selects: version -> map -> monster / coordinate ---
+    const versionSelect = document.getElementById('input-point-version');
+    const mapSelect = document.getElementById('input-map-name');
+    const monsterSelect = document.getElementById('input-monster');
+    const pointSelect = document.getElementById('input-point-name');
+
+    function updateMapOptions() {
+        const version = versionSelect.value;
+        mapSelect.innerHTML = '<option value="">選擇地圖</option>';
+        monsterSelect.innerHTML = '<option value="">選擇怪物</option>';
+        pointSelect.innerHTML = '<option value="">選擇座標</option>';
+        document.getElementById('scout-map-wrapper').style.display = 'none';
+
+        if (gameData[version]) {
+            Object.keys(gameData[version]).forEach(map => {
+                const opt = document.createElement('option');
+                opt.value = map;
+                opt.innerText = map;
+                mapSelect.appendChild(opt);
+            });
+        }
+    }
+
+    function updateMonsterOptions() {
+        const version = versionSelect.value;
+        const map = mapSelect.value;
+        monsterSelect.innerHTML = '<option value="">選擇怪物</option>';
+        pointSelect.innerHTML = '<option value="">選擇座標</option>';
+
+        const mapPreview = document.getElementById('scout-map-preview');
+        const mapWrapper = document.getElementById('scout-map-wrapper');
+        const mapData = gameData[version]?.[map];
+
+        if (!mapData) { mapWrapper.style.display = 'none'; return; }
+
+        if (mapData.mapImage) {
+            mapPreview.src = mapData.mapImage;
+            mapWrapper.style.display = 'flex';
+        } else {
+            mapWrapper.style.display = 'none';
+        }
+
+        const allTargets = [
+            ...(mapData.monsters || []),
+            ...(mapData.aetherytes || []).map(a => ({ name: '傳送水晶: ' + a.name, rank: '水晶', _isHiddenRank: true, _aetheryte: a }))
+        ];
+
+        allTargets.forEach((m, idx) => {
+            const opt = document.createElement('option');
+            opt.value = idx;
+            opt.dataset.name = m.name;
+            opt.dataset.rank = m.rank || 'A';
+            opt.innerText = m.name;
+            monsterSelect.appendChild(opt);
+
+            // Auto add an option to points if it's an aetheryte to simplify flow
+            if (m._aetheryte) {
+                const ptOpt = document.createElement('option');
+                ptOpt.value = `${m._aetheryte.x},${m._aetheryte.y}`;
+                ptOpt.dataset.x = m._aetheryte.x;
+                ptOpt.dataset.y = m._aetheryte.y;
+                ptOpt.dataset.forAetheryte = m.name;
+                ptOpt.innerText = `水晶座標 (X:${m._aetheryte.x}, Y: ${m._aetheryte.y})`;
+                ptOpt.style.display = 'none'; // hidden from manual list, selected automatically
+                pointSelect.appendChild(ptOpt);
+            }
+        });
+
+        // Coordinates are map-level
+        (mapData.points || []).forEach(pt => {
+            const opt = document.createElement('option');
+            opt.value = `${pt.x},${pt.y}`;
+            opt.dataset.x = pt.x;
+            opt.dataset.y = pt.y;
+            opt.innerText = `${pt.label} (X:${pt.x}, Y:${pt.y})`;
+            pointSelect.appendChild(opt);
+        });
+
+        // Ensure map markers update immediately when map changes
+        setTimeout(() => {
+            if (typeof window.renderMapMarkers === 'function') {
+                window.renderMapMarkers();
+            }
+        }, 50);
+    }
+
+    versionSelect.addEventListener('change', updateMapOptions);
+    mapSelect.addEventListener('change', updateMonsterOptions);
+
+    monsterSelect.addEventListener('change', (e) => {
+        const sel = e.target.options[e.target.selectedIndex];
+        if (sel && sel.dataset.name && sel.dataset.name.startsWith('傳送水晶: ')) {
+            // Auto-select coordinates for this aetheryte
+            Array.from(pointSelect.options).forEach(opt => {
+                if (opt.dataset.forAetheryte === sel.dataset.name) {
+                    pointSelect.value = opt.value;
+                }
+            });
+        }
+    });
+
+    updateMapOptions();
+    setTimeout(initMapInteractions, 100);
+
+    // --- Discord OAuth ---
+    document.getElementById('btn-discord-login').addEventListener('click', async () => {
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'discord',
+            options: { redirectTo: window.location.origin + window.location.pathname }
+        });
+        if (error) alert('Discord 登入失敗: ' + error.message);
+    });
+
+    // --- User room: leave ---
+    document.getElementById('btn-leave-room').addEventListener('click', async () => {
+        if (currentRoomSubscription) {
+            await supabase.removeChannel(currentRoomSubscription);
+            currentRoomSubscription = null;
+        }
+        currentRoomId = null;
+        switchView('home');
+    });
+
+    // --- Conductor: create room ---
+    document.getElementById('btn-open-create-modal').addEventListener('click', () =>
+        modals.createRoom.classList.remove('hidden'));
+
+    document.getElementById('close-create-room').addEventListener('click', () =>
+        modals.createRoom.classList.add('hidden'));
+
+    document.getElementById('btn-submit-create-room').addEventListener('click', async () => {
+        const roomName = document.getElementById('input-room-name').value.trim();
+        if (!roomName) return alert('請輸入車隊名稱！');
+
+        const versions = Array.from(
+            document.querySelectorAll('#version-checkboxes input:checked')
+        ).map(cb => cb.value).join(', ');
+
+        const servers = Array.from(
+            document.querySelectorAll('#server-checkboxes input:checked')
+        ).map(cb => cb.value).join(', ');
+
+        const { data, error } = await supabase.from('rooms').insert([{
+            name: roomName, version: versions, server: servers,
+            conductor_id: currentUser.id,
+            is_published: false, current_point_index: -1
+        }]).select().single();
+
+        if (error) return alert('建立房間失敗: ' + error.message);
+
+        currentRoomId = data.id;
+        modals.createRoom.classList.add('hidden');
+        document.getElementById('input-room-name').value = '';
+        document.getElementById('btn-close-room').classList.remove('hidden');
+        document.getElementById('conductor-scouting').classList.remove('hidden');
+        document.getElementById('conductor-active').classList.add('hidden');
+        document.getElementById('conductor-dashboard-title').innerText = `車長後台 - ${roomName}`;
+        document.getElementById('checkbox-publish').checked = false;
+        scoutingPoints = [];
+        window.renderScoutingPoints();
+        switchView('conductor');
+    });
+
+    // --- Conductor: publish toggle ---
+    document.getElementById('checkbox-publish').addEventListener('change', async (e) => {
+        if (!currentRoomId) return;
+        const isPublished = e.target.checked;
+        const { error } = await supabase.from('rooms')
+            .update({ is_published: isPublished }).eq('id', currentRoomId);
+        if (error) {
+            alert('更新發布狀態失敗: ' + error.message);
+            e.target.checked = !isPublished;
+        }
+    });
+
+    // --- Conductor: close room ---
+    document.getElementById('btn-close-room').addEventListener('click', async () => {
+        if (currentRoomId) {
+            await supabase.from('rooms').update({ is_active: false }).eq('id', currentRoomId);
+            localStorage.removeItem('draft_points_' + currentRoomId);
+        }
+        currentRoomId = null;
+        scoutingPoints = [];
+        currentPointIndex = -1;
+        document.getElementById('btn-close-room').classList.add('hidden');
+        document.getElementById('conductor-scouting').classList.add('hidden');
+        document.getElementById('conductor-active').classList.add('hidden');
+        switchView('home');
+    });
+
+    // --- Scouting: add point ---
+    document.getElementById('add-point-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (scoutingPoints.length >= 100) return alert('最多 100 個點位');
+
+        const version = versionSelect.value;
+        const mapName = mapSelect.value;
+
+        if (!monsterSelect.value || !pointSelect.value) return alert('請選擇怪物與座標點位！');
+
+        const selMon = monsterSelect.options[monsterSelect.selectedIndex];
+        const selPt = pointSelect.options[pointSelect.selectedIndex];
+        const savedCoordValue = selPt.value; // preserve coordinate selection
+
+        scoutingPoints.push({
+            version, mapName,
+            monster: selMon.dataset.name,
+            rank: selMon.dataset.rank || 'A',
+            x: selPt.dataset.x,
+            y: selPt.dataset.y,
+            id: Date.now()
+        });
+
+        localStorage.setItem('draft_points_' + currentRoomId, JSON.stringify(scoutingPoints));
+
+        // Reset only the monster; restore coordinate so user can quickly add another monster at same spot
+        monsterSelect.value = '';
+        pointSelect.value = savedCoordValue;
+
+        window.renderScoutingPoints();
+    });
+
+    // --- Conductor: start train ---
+    document.getElementById('btn-start-train').addEventListener('click', async () => {
+        if (!currentRoomId || scoutingPoints.length === 0) return;
+
+        const isPublic = document.getElementById('checkbox-publish').checked;
+        if (!isPublic) {
+            return alert('請先勾選發布房間，才能出發！');
+        }
+
+        const startBtn = document.getElementById('btn-start-train');
+        startBtn.innerText = '儲存路線中...';
+        startBtn.disabled = true;
+
+        try {
+            const pointsToInsert = scoutingPoints.map((pt, index) => {
+                const x = parseFloat(pt.x);
+                const y = parseFloat(pt.y);
+                if (isNaN(x) || isNaN(y)) throw new Error(`點位 #${index + 1} 座標無效（${pt.x}, ${pt.y}）`);
+                return {
+                    room_id: currentRoomId, step_order: index,
+                    point_version: pt.version, map_name: pt.mapName,
+                    monster: pt.monster, monster_rank: pt.rank || 'A', x, y
+                };
+            });
+
+            const isPublic = document.getElementById('checkbox-publish').checked;
+            const { error: roomErr } = await supabase.from('rooms')
+                .update({ is_published: isPublic }).eq('id', currentRoomId);
+            if (roomErr) throw new Error('更新發布狀態失敗: ' + roomErr.message);
+
+            const { error: pointsErr } = await supabase.from('points').insert(pointsToInsert);
+            if (pointsErr) throw new Error('儲存點位失敗: ' + pointsErr.message);
+
+            document.getElementById('conductor-scouting').classList.add('hidden');
+            document.getElementById('conductor-active').classList.remove('hidden');
+            currentPointIndex = -1;
+            localStorage.removeItem('draft_points_' + currentRoomId);
+            updateActivePhaseUI();
+        } catch (err) {
+            alert(err.message);
+            startBtn.innerText = '開始發車';
+            startBtn.disabled = false;
+        }
+    });
+
+    // --- Conductor: next point / end train ---
+    document.getElementById('btn-next-point').addEventListener('click', async () => {
+        if (currentPointIndex < scoutingPoints.length - 1) {
+            currentPointIndex++;
+            updateActivePhaseUI();
+
+            const isLastPoint = currentPointIndex >= scoutingPoints.length - 1;
+            const updates = { current_point_index: currentPointIndex };
+
+            // When reaching the last point, shrink expires_at to now + 15 minutes
+            if (isLastPoint) {
+                updates.expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+            }
+
+            await supabase.from('rooms').update(updates).eq('id', currentRoomId);
+        } else {
+            // Already at the last point, so button acts as "Finish"
+            if (confirm('已經沒有下一站了，確定要結束行程並關閉班車嗎？')) {
+                await supabase.from('rooms').update({ is_active: false }).eq('id', currentRoomId);
+                alert('感謝車長開車！行程已圓滿結束。');
+
+                // Clear and reset UI
+                localStorage.removeItem('draft_points_' + currentRoomId);
+                currentRoomId = null;
+                scoutingPoints = [];
+                currentPointIndex = -1;
+                document.getElementById('btn-close-room').classList.add('hidden');
+                document.getElementById('conductor-scouting').classList.add('hidden');
+                document.getElementById('conductor-active').classList.add('hidden');
+                switchView('home');
+            }
+        }
+    });
+
+    // --- Conductor: previous point ---
+    document.getElementById('btn-prev-point').addEventListener('click', async () => {
+        if (currentPointIndex > 0) {
+            currentPointIndex--;
+            updateActivePhaseUI();
+            await supabase.from('rooms')
+                .update({ current_point_index: currentPointIndex }).eq('id', currentRoomId);
+        }
+    });
+
+    // --- Conductor: Macro interactions ---
+    [1, 2, 3, 4, 5].forEach(num => {
+        const el = document.getElementById('macro-line-' + num);
+
+        let t = localStorage.getItem('custom_macro_' + num);
+        if (t === null && num === 1) t = '/sh 下一站為： <map> <target> 座標：<pos>';
+        if (t === null && num === 2) t = '/y 下一站為： <map> <target> 座標：<pos>';
+        // Initial value is populated by updateActivePhaseUI() if active, but we attach listener here
+
+        el.addEventListener('input', (e) => {
+            // Because the input now holds the *rendered* version while driving,
+            // we have to store whatever they type as the raw template.
+            // If they are modifying it mid-drive, they are changing the template.
+            localStorage.setItem('custom_macro_' + num, e.target.value);
+        });
+    });
+
+    document.getElementById('btn-copy-macro').addEventListener('click', async () => {
+        const lines = [];
+        for (let i = 1; i <= 5; i++) {
+            const val = document.getElementById('macro-line-' + i).value.trim();
+            if (val) lines.push(val);
+        }
+        if (lines.length === 0) return;
+
+        try {
+            await navigator.clipboard.writeText(lines.join('\n'));
+            const btn = document.getElementById('btn-copy-macro');
+            const original = btn.innerText;
+            btn.innerText = '✅ 已複製巨集';
+            setTimeout(() => btn.innerText = original, 2000);
+        } catch (err) {
+            alert('複製失敗，您的瀏覽器可能不支援剪貼簿 API');
+        }
+    });
+
+    // --- Auth state listener (handles login / logout AFTER page load) ---
+    supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN') {
+            if (currentUser && currentUser.id === session?.user?.id) return;
+
+            currentUser = session.user;
+            currentRole = 'conductor';
+            try {
+                const { data } = await supabase
+                    .from('admins').select('id').eq('id', currentUser.id).maybeSingle();
+                isAdmin = !!data;
+            } catch (e) { /* ignore */ }
+
+            modals.login.classList.add('hidden');
+            updateAuthUI();
+            try { await checkAndResumeConductorRoom(); } catch (e) { /* ignore */ }
+            fetchRooms();
+
+        } else if (event === 'SIGNED_OUT') {
+            currentUser = null;
+            currentRole = 'user';
+            isAdmin = false;
+            updateAuthUI();
+            fetchRooms();
+        }
+    });
+
+    init();
+});
+
+// Interactive map previews
+function initMapInteractions() {
+    const previewMap = document.getElementById('scout-map-preview');
+    const activeMap = document.getElementById('active-map-img');
+    const userMap = document.getElementById('current-map-img');
+
+    function setupTooltip(imgEl) {
+        let tooltip = imgEl.parentElement.querySelector('.map-coordinate-tooltip');
+        if (!tooltip) {
+            tooltip = document.createElement('div');
+            tooltip.className = 'map-coordinate-tooltip';
+            tooltip.style.display = 'none';
+            imgEl.parentElement.style.position = 'relative';
+            imgEl.parentElement.appendChild(tooltip);
+        }
+
+        imgEl.addEventListener('mousemove', (e) => {
+            const rect = imgEl.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Map from 1.0 to 42.0
+            const mapX = (x / rect.width) * 41 + 1;
+            const mapY = (y / rect.height) * 41 + 1;
+
+            tooltip.innerText = `X: ${mapX.toFixed(1)}, Y: ${mapY.toFixed(1)}`;
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
+            tooltip.style.display = 'block';
+        });
+
+        imgEl.addEventListener('mouseleave', () => {
+            tooltip.style.display = 'none';
+        });
+    }
+
+    [previewMap, activeMap, userMap].forEach(el => {
+        if (el) setupTooltip(el);
+    });
+
+    // Handle clicking on preview map to choose coordinate
+    if (previewMap) {
+        previewMap.addEventListener('click', (e) => {
+            const rect = previewMap.getBoundingClientRect();
+            let drawWidth = rect.width; let drawHeight = rect.height;
+            if (previewMap.naturalWidth && previewMap.naturalHeight) {
+                const ratio = Math.min(rect.width / previewMap.naturalWidth, rect.height / previewMap.naturalHeight);
+                drawWidth = previewMap.naturalWidth * ratio;
+                drawHeight = previewMap.naturalHeight * ratio;
+            }
+            const offX = (rect.width - drawWidth) / 2;
+            const offY = (rect.height - drawHeight) / 2;
+
+            const trueX = e.clientX - rect.left - offX;
+            const trueY = e.clientY - rect.top - offY;
+
+            if (trueX < 0 || trueX > drawWidth || trueY < 0 || trueY > drawHeight) return;
+
+            const mapX = (trueX / drawWidth) * 41 + 1;
+            const mapY = (trueY / drawHeight) * 41 + 1;
+
+            const pointSelect = document.getElementById('input-point-name');
+            let closestOpt = null;
+            let minDist = 2.0;
+
+            Array.from(pointSelect.options).forEach(opt => {
+                if (opt.dataset.x && opt.dataset.y) {
+                    const dx = parseFloat(opt.dataset.x) - mapX;
+                    const dy = parseFloat(opt.dataset.y) - mapY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        closestOpt = opt;
+                    }
+                }
+            });
+
+            if (closestOpt) {
+                pointSelect.value = closestOpt.value;
+                renderMapMarkers();
+            } else {
+                const customVal = `${mapX.toFixed(1)},${mapY.toFixed(1)}`;
+                let opt = Array.from(pointSelect.options).find(o => o.value === customVal);
+                if (!opt) {
+                    opt = document.createElement('option');
+                    opt.value = customVal;
+                    opt.dataset.x = mapX.toFixed(1);
+                    opt.dataset.y = mapY.toFixed(1);
+                    opt.innerText = `自訂 (X:${mapX.toFixed(1)}, Y:${mapY.toFixed(1)})`;
+                    pointSelect.appendChild(opt);
+                }
+                pointSelect.value = customVal;
+                renderMapMarkers();
+            }
+        });
+    }
+}
+
+window.renderMapMarkers = function () {
+    const previewMap = document.getElementById('scout-map-preview');
+    if (!previewMap) return;
+    const container = previewMap.parentElement;
+
+    container.querySelectorAll('.map-marker').forEach(el => el.remove());
+
+    const versionSelect = document.getElementById('input-point-version');
+    const mapSelect = document.getElementById('input-map-name');
+    const pointSelect = document.getElementById('input-point-name');
+    const monsterSelect = document.getElementById('input-monster');
+
+    const version = versionSelect.value;
+    const map = mapSelect.value;
+    const mapData = gameData[version]?.[map];
+    if (!mapData || !mapData.mapImage) return;
+
+    (mapData.points || []).forEach(pt => {
+        const marker = document.createElement('div');
+        marker.className = 'map-marker';
+        marker.innerText = pt.label;
+
+        const leftPct = ((pt.x - 1) / 41) * 100;
+        const topPct = ((pt.y - 1) / 41) * 100;
+
+        marker.style.left = leftPct + '%';
+        marker.style.top = topPct + '%';
+
+        marker.addEventListener('click', (e) => {
+            e.stopPropagation();
+            pointSelect.value = `${pt.x},${pt.y}`;
+            window.renderMapMarkers();
+        });
+
+        if (pointSelect.value === `${pt.x},${pt.y}`) marker.classList.add('selected');
+        container.appendChild(marker);
+    });
+
+    (mapData.aetherytes || []).forEach(a => {
+        const marker = document.createElement('div');
+        marker.className = 'map-marker aetheryte';
+        marker.title = a.name;
+
+        const leftPct = ((a.x - 1) / 41) * 100;
+        const topPct = ((a.y - 1) / 41) * 100;
+        marker.style.left = leftPct + '%';
+        marker.style.top = topPct + '%';
+
+        marker.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const mOpt = Array.from(monsterSelect.options).find(o => o.dataset.name === '傳送水晶: ' + a.name);
+            if (mOpt) {
+                monsterSelect.value = mOpt.value;
+                monsterSelect.dispatchEvent(new Event('change'));
+            }
+            window.renderMapMarkers();
+        });
+        container.appendChild(marker);
+    });
+}
+
+// Intercept map dropdown update to trigger render
+const _oldUpdateMonsterOptions = updateMonsterOptions;
+updateMonsterOptions = function () {
+    if (typeof _oldUpdateMonsterOptions === 'function') _oldUpdateMonsterOptions();
+    window.renderMapMarkers();
+}
+
+document.getElementById('input-point-name')?.addEventListener('change', window.renderMapMarkers);

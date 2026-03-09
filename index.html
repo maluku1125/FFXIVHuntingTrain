@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FFXIV Hunting Train Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+</head>
+
+<body class="dark-theme">
+    <div id="app">
+        <!-- Header -->
+        <header class="navbar">
+            <div class="logo">
+                <h1>FFXIV繁中<span>狩獵車</span></h1>
+            </div>
+            <nav id="nav-links">
+                <button id="btn-home" class="nav-btn active">大廳</button>
+                <button id="btn-login" class="nav-btn login-btn">車長登入</button>
+                <button id="btn-logout" class="nav-btn login-btn hidden">登出</button>
+            </nav>
+        </header>
+
+        <!-- Main Content Area -->
+        <main id="main-content">
+            <!-- Home View (Room List) -->
+            <section id="view-home" class="view section-active">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <h2 style="margin: 0;">當前列車</h2>
+                    <button id="btn-open-create-modal" class="btn-primary hidden">建立新列車</button>
+                </div>
+                <div class="room-list" id="room-list-container">
+                    <!-- Room cards will be injected here via JS -->
+                    <div class="empty-state">載入中...</div>
+                </div>
+            </section>
+
+            <!-- User Room View -->
+            <section id="view-user-room" class="view hidden">
+                <div class="room-header">
+                    <h2 id="user-room-title">房間名稱</h2>
+                    <div style="display:flex;align-items:center;gap:0.8rem;">
+                        <span id="room-viewer-count"
+                            style="background:rgba(255,255,255,0.1);color:var(--text-secondary);padding:0.2rem 0.7rem;border-radius:20px;font-size:0.85rem;">👥
+                            --</span>
+                        <button class="btn-secondary" id="btn-leave-room">離開房間</button>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card map-container">
+                        <h3>當前地圖</h3>
+                        <div class="map-view">
+                            <img id="current-map-img" src="" alt="Map placeholder" style="display: none;">
+                            <div id="map-placeholder" class="placeholder">等待車長發車...</div>
+                        </div>
+                    </div>
+
+                    <div class="card coordinate-container">
+                        <h3>當前目標與點位</h3>
+                        <div style="margin-bottom: 0.5rem;">
+                            <span id="coord-version"
+                                style="background: var(--acc-primary); color: white; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: bold; margin-right: 0.5rem; display: none;">--</span>
+                            <span id="coord-rank"
+                                style="background: var(--acc-danger); color: white; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: bold; display: none;">--</span>
+                        </div>
+                        <div class="coord-display">
+                            <span class="coord-label">X:</span> <span id="coord-x" class="coord-value">--</span>
+                            <span class="coord-label">Y:</span> <span id="coord-y" class="coord-value">--</span>
+                        </div>
+                        <div class="map-name" id="coord-map-name" style="margin-bottom: 0.2rem;">尚未發車</div>
+                        <div class="map-name" id="coord-monster"
+                            style="font-size: 1.2rem; color: var(--text-secondary);">--</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Conductor Dashboard -->
+            <section id="view-conductor" class="view hidden">
+                <div class="room-header">
+                    <h2 id="conductor-dashboard-title">車長後台</h2>
+                    <div class="conductor-controls">
+                        <button class="btn-danger hidden" id="btn-close-room">關閉房間</button>
+                    </div>
+                </div>
+
+                <!-- Scouting Phase (找點階段) -->
+                <div id="conductor-scouting" class="hidden prep-grid">
+                    <div class="card map-panel">
+                        <h3>步驟一：準備階段 (最多 100 個)</h3>
+
+                        <div
+                            style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.8rem; background: rgba(255,255,255,0.05); padding: 0.8rem; border-radius: 8px; font-size: 0.95rem;">
+                            <input type="checkbox" id="checkbox-publish" style="transform: scale(1.3);">
+                            <label for="checkbox-publish" style="font-weight: 600;">發布房間 (讓一般玩家能看到此班車)</label>
+                        </div>
+
+                        <div id="scout-map-wrapper" class="map-view-square"
+                            style="display: none; margin-bottom: 1.5rem; max-width: 450px; margin-left: auto; margin-right: auto; position: relative;">
+                            <img id="scout-map-preview" src="" style="display: block; width: 100%; height: 100%;">
+                        </div>
+
+                        <form id="add-point-form" class="input-group" style="flex-wrap: wrap;">
+                            <select id="input-point-version" required
+                                style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.8rem; border-radius: 8px; outline: none; min-width: 80px;">
+                                <option value="7.0">7.0</option>
+                                <option value="6.0">6.0</option>
+                                <option value="5.0">5.0</option>
+                                <option value="4.0">4.0</option>
+                                <option value="3.0">3.0</option>
+                                <option value="2.0">2.0</option>
+                            </select>
+                            <select id="input-map-name" required
+                                style="flex: 1; min-width: 120px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.8rem; border-radius: 8px; outline: none;">
+                                <option value="">選擇地圖</option>
+                            </select>
+                            <select id="input-monster" required
+                                style="flex: 1; min-width: 120px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.8rem; border-radius: 8px; outline: none;">
+                                <option value="">選擇怪物</option>
+                            </select>
+                            <select id="input-point-name" required
+                                style="flex: 1; min-width: 120px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.8rem; border-radius: 8px; outline: none;">
+                                <option value="">選擇座標</option>
+                            </select>
+                            <button type="submit" class="btn-primary" style="width: 100%;">新增點位</button>
+                        </form>
+                    </div>
+
+                    <div class="card list-panel" style="display: flex; flex-direction: column;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.5rem;">
+                            <h3 style="margin: 0; white-space: nowrap; flex-shrink: 0;">點位清單</h3>
+                            <button id="btn-start-train" class="btn-accent" disabled
+                                style="flex: 1; min-width: 100px;">開始發車</button>
+                        </div>
+                        <ul id="points-list" class="points-list vertical-scroller" style="flex: 1;">
+                            <!-- Points will be injected here -->
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Active Phase (開車階段) -->
+                <div id="conductor-active" class="hidden active-grid">
+                    <div class="card map-panel"
+                        style="display: flex; flex-direction: column; justify-content: flex-start;">
+                        <h3>步驟二：開車階段</h3>
+                        <div class="active-train-controls">
+                            <div class="current-point-info">
+                                <p>正在前往：</p>
+                                <h4 id="active-map-name">--</h4>
+                                <div
+                                    style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <span id="active-rank"
+                                        style="background: var(--acc-danger); color: white; padding: 0.1rem 0.4rem; border-radius: 8px; font-size: 0.7rem; font-weight: bold; display: none;">--</span>
+                                    <h5 id="active-monster"
+                                        style="color: var(--text-secondary); margin: 0; font-weight: 400;">--</h5>
+                                </div>
+                                <div class="coord-display small">
+                                    <span>X: <span id="active-x">--</span></span>
+                                    <span>Y: <span id="active-y">--</span></span>
+                                </div>
+                                <div class="control-actions">
+                                    <button id="btn-prev-point" class="btn-secondary" disabled>上一站</button>
+                                    <button id="btn-next-point" class="btn-massive">廣播下個點位</button>
+                                </div>
+                            </div>
+
+                            <!-- 新增/更新：可自訂帶變數的廣播巨集 -->
+                            <div class="macro-container"
+                                style="margin-top: 1.5rem; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 1rem; border: 1px solid var(--border-color);">
+                                <h4
+                                    style="margin: 0 0 0.8rem 0; font-size: 0.95rem; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center;">
+                                    遊戲內廣播巨集
+                                    <button id="btn-copy-macro" class="btn-primary"
+                                        style="padding: 0.3rem 0.8rem; font-size: 0.8rem; background: var(--acc-accent);">📋
+                                        複製巨集</button>
+                                </h4>
+                                <p
+                                    style="font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 0.8rem 0; line-height: 1.4;">
+                                    支援變數：<code>&lt;map&gt;</code>(地圖)、<code>&lt;target&gt;</code>(名稱)、<code>&lt;pos&gt;</code>(座標)。<br>系統自動記憶您填寫的格式。
+                                </p>
+                                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                                    <input type="text" id="macro-line-1"
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;"
+                                        value="/sh 下一站為： <map> <target> 座標：<pos>">
+                                    <input type="text" id="macro-line-2"
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;"
+                                        value="/y 下一站為： <map> <target> 座標：<pos>">
+                                    <input type="text" id="macro-line-3" placeholder="自訂巨集內容 (可留空)..."
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                    <input type="text" id="macro-line-4" placeholder="自訂巨集內容 (可留空)..."
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                    <input type="text" id="macro-line-5" placeholder="自訂巨集內容 (可留空)..."
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card list-panel" style="display: flex; flex-direction: column;">
+                        <!-- 移至右側上方的地圖預覽縮小版 -->
+                        <div class="map-view-square"
+                            style="width: 100%; max-width: 250px; margin: 0 auto 1.5rem auto; border-radius: 8px;">
+                            <img id="active-map-img" src="" alt="地圖" style="display:none; border-radius: 8px;">
+                        </div>
+
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h3 style="margin: 0;">點位清單</h3>
+                            <span id="progress-text" class="progress-badge">0/0</span>
+                        </div>
+                        <ul id="active-points-list" class="points-list vertical-scroller" style="flex: 1;">
+                            <!-- Injected point items -->
+                        </ul>
+                    </div>
+                </div>
+    </div>
+    </section>
+    </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="login-modal" class="modal hidden">
+        <div class="modal-content" style="text-align: center;">
+            <span class="close-btn" id="close-login">&times;</span>
+            <h2 style="margin-bottom: 0.5rem;">車長登入</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 2rem; font-size: 0.9rem;">僅車長需要登入</p>
+
+            <button id="btn-discord-login" class="btn-primary full-width"
+                style="background-color: #5865F2; font-size: 1.1rem; padding: 1rem; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 0.8rem;">
+                <svg width="24" height="24" viewBox="0 0 127.14 96.36" fill="white" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a67.59,67.59,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.31,60,73.31,53s5-12.74,11.43-12.74S96.33,46,96.22,53,91.08,65.69,84.69,65.69Z" />
+                </svg>
+                使用 Discord 登入
+            </button>
+        </div>
+    </div>
+
+    <!-- Create Room Modal -->
+    <div id="create-room-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-btn" id="close-create-room">&times;</span>
+            <h2 style="margin-bottom: 1.5rem;">建立新列車</h2>
+            <div id="create-room-form">
+                <div class="input-group">
+                    <label style="display:block; margin-bottom:0.5rem; color:var(--text-secondary);">列車名稱</label>
+                    <input type="text" id="input-room-name" placeholder="例: 風神7A12不停車">
+                </div>
+                <div class="input-group" style="margin-top: 1.5rem;">
+                    <label style="display:block; margin-bottom:0.5rem; color:var(--text-secondary);">狩獵版本 (可複選)</label>
+                    <div style="display: flex; gap: 1rem;" id="version-checkboxes">
+                        <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox" value="7.0"
+                                checked> 7.0</label>
+                        <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox" value="6.0">
+                            6.0</label>
+                        <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox" value="5.0">
+                            5.0</label>
+                        <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox" value="4.0">
+                            4.0</label>
+                    </div>
+                </div>
+                <div class="input-group" style="margin-top: 1.5rem;">
+                    <label style="display:block;margin-bottom:0.5rem;color:var(--text-secondary);">伺服器 (可複選)</label>
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;" id="server-checkboxes">
+                        <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox"
+                                value="依弗利特"> 依弗利特</label>
+                        <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox" value="利維坦">
+                            利維坦</label>
+                        <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox" value="奧汀">
+                            奧汀</label>
+                        <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox"
+                                value="巴哈姆特"> 巴哈姆特</label>
+                        <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox" value="泰坦">
+                            泰坦</label>
+                        <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox" value="迦樓羅">
+                            迦樓羅</label>
+                        <label style="display:flex; align-items:center; gap:0.3rem;"><input type="checkbox" value="鳳凰">
+                            鳳凰</label>
+                    </div>
+                </div>
+                <button type="button" id="btn-submit-create-room" class="btn-primary full-width"
+                    style="margin-top: 2rem;">建立房間</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs (v11 Modular) -->
+    <!-- Scripts are bundled in main.js as ES Modules -->
+    <script type="module" src="main.js"></script>
+</body>
+
+</html>
