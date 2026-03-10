@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FFXIV繁中壽列車v1.2.0 madeby 諭諭</title>
+    <title>FFXIV繁中狩獵車</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
 </head>
@@ -15,8 +15,10 @@
         <header class="navbar">
             <div class="logo">
                 <h1 style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                    FFXIV繁中<span>壽列車</span>
-                    <span style="font-size: 0.4em; font-weight: normal; color: var(--text-secondary); opacity: 0.8; letter-spacing: 0.5px;">v1.2.0 made by 諭諭</span>
+                    FFXIV繁中<span>狩獵車</span>
+                    <span
+                        style="font-size: 0.4em; font-weight: normal; color: var(--text-secondary); opacity: 0.8; letter-spacing: 0.5px;">v1.2.1
+                        made by 諭諭</span>
                 </h1>
             </div>
             <nav id="nav-links">
@@ -171,9 +173,15 @@
                             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.5rem;">
                             <h3 style="margin: 0; white-space: nowrap; flex-shrink: 0;">點位清單</h3>
                             <div style="display: flex; gap: 0.3rem;">
-                                <button id="btn-copy-pts" class="btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">📋 複製</button>
-                                <button id="btn-export-pts" class="btn-primary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: var(--acc-accent);">📤 存txt</button>
-                                <button id="btn-import-pts" class="btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">📥 匯入txt</button>
+                                <button id="btn-copy-pts" class="btn-secondary"
+                                    style="padding: 0.3rem 0.5rem; font-size: 0.75rem; white-space: nowrap;">📋
+                                    複製</button>
+                                <button id="btn-export-pts" class="btn-secondary"
+                                    style="padding: 0.3rem 0.5rem; font-size: 0.75rem; white-space: nowrap;">📤
+                                    存txt</button>
+                                <button id="btn-import-pts" class="btn-secondary"
+                                    style="padding: 0.3rem 0.5rem; font-size: 0.75rem; white-space: nowrap;">📥
+                                    匯入txt</button>
                             </div>
                             <button id="btn-start-train" class="btn-accent" disabled
                                 style="flex: 1; min-width: 100px; margin-top: 0;">出發</button>
@@ -205,8 +213,10 @@
                                     <span>Y: <span id="active-y">--</span></span>
                                 </div>
                                 <div class="control-actions" style="margin-top: 0.8rem;">
-                                    <button id="btn-prev-point" class="btn-secondary" style="font-size: 1rem; padding: 0.6rem 1.2rem;" disabled>上一站</button>
-                                    <button id="btn-next-point" class="btn-primary" style="font-size: 1.1rem; padding: 0.6rem 2rem;">廣播下個點位</button>
+                                    <button id="btn-prev-point" class="btn-secondary"
+                                        style="font-size: 1rem; padding: 0.6rem 1.2rem;" disabled>上一站</button>
+                                    <button id="btn-next-point" class="btn-primary"
+                                        style="font-size: 1.1rem; padding: 0.6rem 2rem;">廣播下個點位</button>
                                 </div>
                             </div>
 
@@ -219,15 +229,15 @@
                                     <div style="display: flex; gap: 0.5rem;">
                                         <button id="btn-import-macro" class="btn-secondary"
                                             style="padding: 0.3rem 0.8rem; font-size: 0.8rem;">📥 匯入</button>
-                                        <button id="btn-export-macro" class="btn-primary"
-                                            style="padding: 0.3rem 0.8rem; font-size: 0.8rem; background: var(--acc-accent);">📤 匯出</button>
+                                        <button id="btn-export-macro" class="btn-secondary"
+                                            style="padding: 0.3rem 0.8rem; font-size: 0.8rem;">📤 匯出</button>
                                     </div>
                                 </h4>
                                 <p
                                     style="font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 0.8rem 0; line-height: 1.4;">
                                     支援變數：<code>&lt;map&gt;</code>(地圖)、<code>&lt;target&gt;</code>(名稱)、<code>&lt;pos&gt;</code>(座標)。<br>系統自動記憶您填寫的格式。
                                 </p>
-                                
+
                                 <div style="margin-bottom: 1rem;">
                                     <h5 style="color: var(--acc-danger); margin-bottom: 0.4rem;">▶ 怪物用模板</h5>
                                     <div style="display: flex; flex-direction: column; gap: 0.4rem;">
@@ -245,7 +255,7 @@
                                             style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
                                     </div>
                                 </div>
-                                
+
                                 <div>
                                     <h5 style="color: #0ea5e9; margin-bottom: 0.4rem;">▶ 水晶用模板</h5>
                                     <div style="display: flex; flex-direction: column; gap: 0.4rem;">
@@ -278,8 +288,12 @@
                             <h3 style="margin: 0;">點位清單</h3>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
                                 <div style="display: flex; gap: 0.3rem;">
-                                    <button id="btn-copy-pts-active" class="btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">📋 複製</button>
-                                    <button id="btn-export-pts-active" class="btn-primary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: var(--acc-accent);">📤 存txt</button>
+                                    <button id="btn-copy-pts-active" class="btn-secondary"
+                                        style="padding: 0.3rem 0.5rem; font-size: 0.75rem; white-space: nowrap;">📋
+                                        複製</button>
+                                    <button id="btn-export-pts-active" class="btn-secondary"
+                                        style="padding: 0.3rem 0.5rem; font-size: 0.75rem; white-space: nowrap;">📤
+                                        存txt</button>
                                 </div>
                                 <span id="progress-text" class="progress-badge" style="margin-left: 0.5rem;">0/0</span>
                             </div>
