@@ -145,6 +145,143 @@ async function checkAndResumeConductorRoom() {
 }
 
 // ============================================================
+// Export / Copy Points List Logic
+// ============================================================
+function getFormattedPointsList() {
+    if (!scoutingPoints || scoutingPoints.length === 0) return '';
+    
+    let output = '【 狩獵車點位清單 】\n';
+    
+    const titleEl = document.getElementById('conductor-dashboard-title');
+    if (titleEl && titleEl.innerText) {
+        output += `車次：${titleEl.innerText.replace('車長後台 - ', '')}\n`;
+    }
+    
+    output += `共 ${scoutingPoints.length} 個點位\n`;
+    output += '-'.repeat(30) + '\n';
+    
+    scoutingPoints.forEach((pt, index) => {
+        const rankStr = pt.rank && pt.rank !== '水晶' ? `[${pt.rank}怪]` : '';
+        const targetStr = pt.rank === '水晶' ? `(水晶) ${pt.monster}` : `${rankStr} ${pt.monster}`;
+        // Pad the index slightly for visually pleasing output
+        const numStr = String(index + 1).padStart(2, '0');
+        output += `${numStr}. ${pt.mapName} - ${targetStr} (X:${pt.x}, Y:${pt.y})\n`;
+    });
+    
+    return output;
+}
+
+async function handleCopyPointsList(btnId) {
+    const text = getFormattedPointsList();
+    if (!text) {
+        alert('目前沒有任何點位可以複製！');
+        return;
+    }
+    try {
+        await navigator.clipboard.writeText(text);
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            const original = btn.innerText;
+            btn.innerText = '✅ 已複製';
+            setTimeout(() => btn.innerText = original, 2000);
+        }
+    } catch (err) {
+        alert('複製失敗，您的瀏覽器可能不支援剪貼簿 API');
+    }
+}
+
+function handleExportPointsList(btnId) {
+    const text = getFormattedPointsList();
+    if (!text) {
+        alert('目前沒有任何點位可以輸出！');
+        return;
+    }
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'points_list.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    const btn = document.getElementById(btnId);
+    if (btn) {
+        const original = btn.innerText;
+        btn.innerText = '✅ 已儲存';
+        setTimeout(() => btn.innerText = original, 2000);
+    }
+}
+
+document.getElementById('btn-copy-pts').addEventListener('click', () => handleCopyPointsList('btn-copy-pts'));
+document.getElementById('btn-export-pts').addEventListener('click', () => handleExportPointsList('btn-export-pts'));
+document.getElementById('btn-copy-pts-active').addEventListener('click', () => handleCopyPointsList('btn-copy-pts-active'));
+document.getElementById('btn-export-pts-active').addEventListener('click', () => handleExportPointsList('btn-export-pts-active'));
+
+document.getElementById('btn-import-pts').addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt';
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const text = event.target.result;
+            if (!text) return;
+            
+            const lines = text.split(/\r?\n/);
+            const newPoints = [];
+            
+            // Format match: "01. Shaaloani - [A怪] Rax (X:12.5, Y:15.0)" OR "02. Tural - (水晶) Tural (X:10, Y:10)"
+            const pointRegex = /^\d+\.\s+(.+?)\s+-\s+(?:\[(.*?)怪\]|\((水晶)\))\s+(.+?)\s+\(X:([\d.]+),\s+Y:([\d.]+)\)/;
+            
+            for (const line of lines) {
+                const match = line.match(pointRegex);
+                if (match) {
+                    const mapName = match[1].trim();
+                    const monsterRank = match[2] || match[3]; // group 2 = normal rank (A/B/S), group 3 = 水晶
+                    const monsterName = match[4].trim();
+                    const ptX = match[5];
+                    const ptY = match[6];
+                    
+                    newPoints.push({
+                        id: crypto.randomUUID(),
+                        version: document.getElementById('input-point-version').value, // Use current selected version
+                        mapName: mapName,
+                        monster: monsterName,
+                        rank: monsterRank,
+                        x: ptX,
+                        y: ptY
+                    });
+                }
+            }
+            
+            if (newPoints.length > 0) {
+                if (confirm(`偵測到 ${newPoints.length} 個有效點位，是否要覆蓋目前的準備清單？`)) {
+                    scoutingPoints = newPoints;
+                    if (currentRoomId) {
+                        localStorage.setItem('draft_points_' + currentRoomId, JSON.stringify(scoutingPoints));
+                    }
+                    window.renderScoutingPoints();
+                    
+                    const btn = document.getElementById('btn-import-pts');
+                    const original = btn.innerText;
+                    btn.innerText = '✅ 已匯入';
+                    setTimeout(() => btn.innerText = original, 2000);
+                }
+            } else {
+                alert('在這個檔案中找不到任何有效的點位資料！請確定您匯入的是由系統輸出的TXT檔案。');
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+});
+
+// ============================================================
 // Room list (home lobby)
 // ============================================================
 async function fetchRooms() {
@@ -282,16 +419,10 @@ function updateActivePhaseUI() {
 
     const editBtn = document.getElementById('btn-edit-room-title');
     if (editBtn) {
-        if (isPrep && !document.getElementById('edit-room-title').classList.contains('hidden')) {
+        if (!document.getElementById('edit-room-title').classList.contains('hidden')) {
             // currently editing, do nothing
         } else {
-            editBtn.classList.toggle('hidden', !isPrep);
-            if (!isPrep) {
-                document.getElementById('edit-room-title').classList.add('hidden');
-                document.getElementById('btn-save-room-title').classList.add('hidden');
-                document.getElementById('btn-cancel-room-title').classList.add('hidden');
-                document.getElementById('conductor-dashboard-title').classList.remove('hidden');
-            }
+            editBtn.classList.remove('hidden');
         }
     }
 
@@ -330,29 +461,68 @@ function updateActivePhaseUI() {
     prevBtn.style.opacity = currentPointIndex <= 0 ? '0.5' : '1';
 
     // Update Macro Values (Dynamic Replacements)
-    const templates = [1, 2, 3, 4, 5].map(i => {
-        let t = localStorage.getItem('custom_macro_' + i);
+    const monsterTemplates = [1, 2, 3, 4, 5].map(i => {
+        let t = localStorage.getItem('custom_macro_monster_' + i);
+        // Fallback to legacy if available, then defaults
+        if (t === null) t = localStorage.getItem('custom_macro_' + i); 
         if (t === null && i === 1) t = '/sh 下一站為： <map> <target> 座標：<pos>';
         if (t === null && i === 2) t = '/y 下一站為： <map> <target> 座標：<pos>';
         return t || '';
     });
+    
+    const aetheryteTemplates = [1, 2, 3, 4, 5].map(i => {
+        let t = localStorage.getItem('custom_macro_aetheryte_' + i);
+        if (t === null && i === 1) t = '/sh 傳送至水晶： <target>';
+        return t || '';
+    });
 
     [1, 2, 3, 4, 5].forEach((num, index) => {
-        const el = document.getElementById('macro-line-' + num);
-        let text = templates[index];
-        if (isPrep || finished) {
-            text = (num === 1 || num === 2) ? (text ? '/sh 等待車長廣播開始' : '') : text;
-        } else if (text) {
-            const rankStr = pt.rank && pt.rank !== '水晶' ? `${pt.rank}怪 ` : '';
-            const targetStr = pt.rank === '水晶' ? pt.monster : `${rankStr}${pt.monster}`;
-            const posStr = `(X:${pt.x}, Y:${pt.y})`;
-
-            text = text.replace(/<map>/g, pt.mapName || '')
-                .replace(/<target>/g, targetStr || '')
-                .replace(/<pos>/g, posStr || '');
-        }
-        el.value = text;
+        document.getElementById('macro-monster-' + num).value = monsterTemplates[index];
+        document.getElementById('macro-aetheryte-' + num).value = aetheryteTemplates[index];
     });
+
+    // Global copy point macro tool
+    window.copyPointMacro = async (index) => {
+        const point = scoutingPoints[index];
+        if (!point) return;
+
+        const rankStr = point.rank && point.rank !== '水晶' ? `${point.rank}怪 ` : '';
+        const targetStr = point.rank === '水晶' ? point.monster : `${rankStr}${point.monster}`;
+        const posStr = `(X:${point.x}, Y:${point.y})`;
+
+        const lines = [];
+        const prefix = point.rank === '水晶' ? 'macro-aetheryte-' : 'macro-monster-';
+        
+        for (let i = 1; i <= 5; i++) {
+            const template = document.getElementById(prefix + i).value.trim();
+            if (template) {
+                lines.push(template
+                    .replace(/<map>/g, point.mapName || '')
+                    .replace(/<target>/g, targetStr || '')
+                    .replace(/<pos>/g, posStr || ''));
+            }
+        }
+
+            // ... (Rest of lines omitted, but copy the specific button replacement)
+                if (lines.length === 0) return;
+        try {
+            await navigator.clipboard.writeText(lines.join('\n'));
+            const btn = document.getElementById(`btn-copy-pt-${index}`);
+            if (btn) {
+                const original = btn.innerText;
+                btn.innerText = '✅ copied';
+                btn.style.background = 'var(--acc-success)';
+                btn.style.borderColor = 'var(--acc-success)';
+                setTimeout(() => {
+                    btn.innerText = original;
+                    btn.style.background = '';
+                    btn.style.borderColor = '';
+                }, 2000);
+            }
+        } catch (err) {
+            alert('複製失敗，您的瀏覽器可能不支援剪貼簿 API');
+        }
+    };
 
     // Populate Points List
     const listEl = document.getElementById('active-points-list');
@@ -361,7 +531,8 @@ function updateActivePhaseUI() {
         scoutingPoints.forEach((p, i) => {
             const li = document.createElement('li');
             li.style.display = 'flex';
-            li.style.flexDirection = 'column';
+            li.style.justifyContent = 'space-between';
+            li.style.alignItems = 'center';
             li.style.marginBottom = '0.6rem';
             li.style.padding = '0.8rem 1rem';
             li.style.borderRadius = '8px';
@@ -379,14 +550,19 @@ function updateActivePhaseUI() {
             }
 
             li.innerHTML = `
-                <div style="font-weight: bold; margin-bottom: 0.4rem; line-height: 1.4;">
-                    <div style="margin-bottom: 0.2rem;">${i + 1}. <span style="color:var(--acc-primary)">[${escapeHTML(p.version)}]</span> ${escapeHTML(p.mapName)} - </div>
-                    <div>
-                        ${p.rank && p.rank !== '水晶' ? `<span style="color:var(--acc-danger);">${escapeHTML(p.rank)}怪</span>` : ''} 
-                        ${escapeHTML(p.monster)}
+                <div style="flex: 1; padding-right: 0.5rem; display: flex; flex-direction: column;">
+                    <div style="font-weight: bold; margin-bottom: 0.4rem; line-height: 1.4;">
+                        <div style="margin-bottom: 0.2rem;">${i + 1}. <span style="color:var(--acc-primary)">[${escapeHTML(p.version)}]</span> ${escapeHTML(p.mapName)} - </div>
+                        <div>
+                            ${p.rank && p.rank !== '水晶' ? `<span style="color:var(--acc-danger);">${escapeHTML(p.rank)}怪</span>` : ''} 
+                            ${escapeHTML(p.monster)}
+                        </div>
                     </div>
+                    <div style="color:var(--text-secondary); font-size: 0.85rem;">X:${escapeHTML(p.x)} Y:${escapeHTML(p.y)}</div>
                 </div>
-                <div style="color:var(--text-secondary); font-size: 0.85rem;">X:${escapeHTML(p.x)} Y:${escapeHTML(p.y)}</div>
+                <button id="btn-copy-pt-${i}" class="btn-primary" style="padding: 0.4rem 0.6rem; font-size: 0.8rem; border-radius: 6px; flex-shrink: 0;" onclick="window.copyPointMacro(${i})">
+                    複製巨集
+                </button>
             `;
             if (i === currentPointIndex) li.scrollIntoView({ behavior: 'smooth', block: 'center' });
             listEl.appendChild(li);
@@ -886,7 +1062,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const finishEditTitle = () => {
         titleH2.classList.remove('hidden');
-        if (currentPointIndex < 0) editBtn.classList.remove('hidden');
+        editBtn.classList.remove('hidden');
         titleInput.classList.add('hidden');
         saveBtn.classList.add('hidden');
         cancelBtn.classList.add('hidden');
@@ -1129,38 +1305,102 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Conductor: Macro interactions ---
     [1, 2, 3, 4, 5].forEach(num => {
-        const el = document.getElementById('macro-line-' + num);
+        const monEl = document.getElementById('macro-monster-' + num);
+        const aethEl = document.getElementById('macro-aetheryte-' + num);
 
-        let t = localStorage.getItem('custom_macro_' + num);
-        if (t === null && num === 1) t = '/sh 下一站為： <map> <target> 座標：<pos>';
-        if (t === null && num === 2) t = '/y 下一站為： <map> <target> 座標：<pos>';
-        // Initial value is populated by updateActivePhaseUI() if active, but we attach listener here
-
-        el.addEventListener('input', (e) => {
-            // Because the input now holds the *rendered* version while driving,
-            // we have to store whatever they type as the raw template.
-            // If they are modifying it mid-drive, they are changing the template.
-            localStorage.setItem('custom_macro_' + num, e.target.value);
-        });
+        if (monEl) {
+            monEl.addEventListener('input', (e) => {
+                localStorage.setItem('custom_macro_monster_' + num, e.target.value);
+            });
+        }
+        if (aethEl) {
+            aethEl.addEventListener('input', (e) => {
+                localStorage.setItem('custom_macro_aetheryte_' + num, e.target.value);
+            });
+        }
     });
 
-    document.getElementById('btn-copy-macro').addEventListener('click', async () => {
-        const lines = [];
+    document.getElementById('btn-export-macro').addEventListener('click', () => {
+        const exportDataObj = { monster: [], aetheryte: [] };
         for (let i = 1; i <= 5; i++) {
-            const val = document.getElementById('macro-line-' + i).value.trim();
-            if (val) lines.push(val);
+            exportDataObj.monster.push(document.getElementById('macro-monster-' + i).value || '');
+            exportDataObj.aetheryte.push(document.getElementById('macro-aetheryte-' + i).value || '');
         }
-        if (lines.length === 0) return;
+        
+        const exportData = JSON.stringify(exportDataObj, null, 2);
+        const blob = new Blob([exportData], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'macros_template.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
 
-        try {
-            await navigator.clipboard.writeText(lines.join('\n'));
-            const btn = document.getElementById('btn-copy-macro');
-            const original = btn.innerText;
-            btn.innerText = '✅ 已複製巨集';
-            setTimeout(() => btn.innerText = original, 2000);
-        } catch (err) {
-            alert('複製失敗，您的瀏覽器可能不支援剪貼簿 API');
-        }
+        const btn = document.getElementById('btn-export-macro');
+        const original = btn.innerText;
+        btn.innerText = '✅ 已匯出';
+        setTimeout(() => btn.innerText = original, 2000);
+    });
+
+    document.getElementById('btn-import-macro').addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.txt';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const text = event.target.result;
+                    let parsed;
+                    try {
+                        parsed = JSON.parse(text);
+                    } catch (parseError) {
+                        throw new Error('檔案內容格式不正確，不是有效的 JSON 格式');
+                    }
+
+                    // Backward compatibility (if it's array of 5 items, apply to monster)
+                    let monsterLines = [];
+                    let aetheryteLines = ['', '', '', '', ''];
+                    
+                    if (Array.isArray(parsed) && parsed.length >= 5) {
+                        monsterLines = parsed.slice(0, 5);
+                        for (let i = 1; i <= 5; i++) {
+                            aetheryteLines[i-1] = document.getElementById('macro-aetheryte-' + i).value || '';
+                        }
+                    } else if (parsed && parsed.monster && parsed.aetheryte) {
+                        monsterLines = parsed.monster;
+                        aetheryteLines = parsed.aetheryte;
+                    } else {
+                        throw new Error('巨集格式不正確，找不到怪物與水晶的資料');
+                    }
+
+                    for (let i = 1; i <= 5; i++) {
+                        const mVal = monsterLines[i - 1] || '';
+                        const aVal = aetheryteLines[i - 1] || '';
+                        
+                        document.getElementById('macro-monster-' + i).value = mVal;
+                        localStorage.setItem('custom_macro_monster_' + i, mVal);
+                        
+                        document.getElementById('macro-aetheryte-' + i).value = aVal;
+                        localStorage.setItem('custom_macro_aetheryte_' + i, aVal);
+                    }
+
+                    const btn = document.getElementById('btn-import-macro');
+                    const original = btn.innerText;
+                    btn.innerText = '✅ 已匯入';
+                    setTimeout(() => btn.innerText = original, 2000);
+                } catch (err) {
+                    alert('匯入失敗：' + err.message + '\n請確認您選擇了正確的 txt 檔案。');
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
     });
 
     // --- Auth state listener (handles login / logout AFTER page load) ---

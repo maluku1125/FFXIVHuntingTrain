@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FFXIV Hunting Train Dashboard</title>
+    <title>FFXIV繁中壽列車v1.2.0 madeby 諭諭</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
 </head>
@@ -14,7 +14,10 @@
         <!-- Header -->
         <header class="navbar">
             <div class="logo">
-                <h1>FFXIV繁中<span>狩獵車</span></h1>
+                <h1 style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+                    FFXIV繁中<span>壽列車</span>
+                    <span style="font-size: 0.4em; font-weight: normal; color: var(--text-secondary); opacity: 0.8; letter-spacing: 0.5px;">v1.2.0 made by 諭諭</span>
+                </h1>
             </div>
             <nav id="nav-links">
                 <button id="btn-home" class="nav-btn active">大廳</button>
@@ -167,8 +170,13 @@
                         <div
                             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.5rem;">
                             <h3 style="margin: 0; white-space: nowrap; flex-shrink: 0;">點位清單</h3>
+                            <div style="display: flex; gap: 0.3rem;">
+                                <button id="btn-copy-pts" class="btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">📋 複製</button>
+                                <button id="btn-export-pts" class="btn-primary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: var(--acc-accent);">📤 存txt</button>
+                                <button id="btn-import-pts" class="btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">📥 匯入txt</button>
+                            </div>
                             <button id="btn-start-train" class="btn-accent" disabled
-                                style="flex: 1; min-width: 100px;">出發</button>
+                                style="flex: 1; min-width: 100px; margin-top: 0;">出發</button>
                         </div>
                         <ul id="points-list" class="points-list vertical-scroller" style="flex: 1;">
                             <!-- Points will be injected here -->
@@ -192,13 +200,13 @@
                                     <h5 id="active-monster"
                                         style="color: var(--text-secondary); margin: 0; font-weight: 400;">--</h5>
                                 </div>
-                                <div class="coord-display small">
+                                <div class="coord-display small" style="font-size: 1.5rem; margin: 1rem 0;">
                                     <span>X: <span id="active-x">--</span></span>
                                     <span>Y: <span id="active-y">--</span></span>
                                 </div>
-                                <div class="control-actions">
-                                    <button id="btn-prev-point" class="btn-secondary" disabled>上一站</button>
-                                    <button id="btn-next-point" class="btn-massive">廣播下個點位</button>
+                                <div class="control-actions" style="margin-top: 0.8rem;">
+                                    <button id="btn-prev-point" class="btn-secondary" style="font-size: 1rem; padding: 0.6rem 1.2rem;" disabled>上一站</button>
+                                    <button id="btn-next-point" class="btn-primary" style="font-size: 1.1rem; padding: 0.6rem 2rem;">廣播下個點位</button>
                                 </div>
                             </div>
 
@@ -207,28 +215,52 @@
                                 style="margin-top: 1.5rem; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 1rem; border: 1px solid var(--border-color);">
                                 <h4
                                     style="margin: 0 0 0.8rem 0; font-size: 0.95rem; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center;">
-                                    遊戲內廣播巨集
-                                    <button id="btn-copy-macro" class="btn-primary"
-                                        style="padding: 0.3rem 0.8rem; font-size: 0.8rem; background: var(--acc-accent);">📋
-                                        複製巨集</button>
+                                    遊戲內巨集模板
+                                    <div style="display: flex; gap: 0.5rem;">
+                                        <button id="btn-import-macro" class="btn-secondary"
+                                            style="padding: 0.3rem 0.8rem; font-size: 0.8rem;">📥 匯入</button>
+                                        <button id="btn-export-macro" class="btn-primary"
+                                            style="padding: 0.3rem 0.8rem; font-size: 0.8rem; background: var(--acc-accent);">📤 匯出</button>
+                                    </div>
                                 </h4>
                                 <p
                                     style="font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 0.8rem 0; line-height: 1.4;">
                                     支援變數：<code>&lt;map&gt;</code>(地圖)、<code>&lt;target&gt;</code>(名稱)、<code>&lt;pos&gt;</code>(座標)。<br>系統自動記憶您填寫的格式。
                                 </p>
-                                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
-                                    <input type="text" id="macro-line-1"
-                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;"
-                                        value="/sh 下一站為： <map> <target> 座標：<pos>">
-                                    <input type="text" id="macro-line-2"
-                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;"
-                                        value="/y 下一站為： <map> <target> 座標：<pos>">
-                                    <input type="text" id="macro-line-3" placeholder="自訂巨集內容 (可留空)..."
-                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
-                                    <input type="text" id="macro-line-4" placeholder="自訂巨集內容 (可留空)..."
-                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
-                                    <input type="text" id="macro-line-5" placeholder="自訂巨集內容 (可留空)..."
-                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                
+                                <div style="margin-bottom: 1rem;">
+                                    <h5 style="color: var(--acc-danger); margin-bottom: 0.4rem;">▶ 怪物用模板</h5>
+                                    <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                                        <input type="text" id="macro-monster-1"
+                                            style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;"
+                                            value="/sh 下一站為： <map> <target> 座標：<pos>">
+                                        <input type="text" id="macro-monster-2"
+                                            style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;"
+                                            value="/y 下一站為： <map> <target> 座標：<pos>">
+                                        <input type="text" id="macro-monster-3" placeholder="自訂巨集內容 (可留空)..."
+                                            style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                        <input type="text" id="macro-monster-4" placeholder="自訂巨集內容 (可留空)..."
+                                            style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                        <input type="text" id="macro-monster-5" placeholder="自訂巨集內容 (可留空)..."
+                                            style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <h5 style="color: #0ea5e9; margin-bottom: 0.4rem;">▶ 水晶用模板</h5>
+                                    <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                                        <input type="text" id="macro-aetheryte-1"
+                                            style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;"
+                                            value="/sh 傳送至水晶： <target>">
+                                        <input type="text" id="macro-aetheryte-2" placeholder="自訂巨集內容 (可留空)..."
+                                            style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                        <input type="text" id="macro-aetheryte-3" placeholder="自訂巨集內容 (可留空)..."
+                                            style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                        <input type="text" id="macro-aetheryte-4" placeholder="自訂巨集內容 (可留空)..."
+                                            style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                        <input type="text" id="macro-aetheryte-5" placeholder="自訂巨集內容 (可留空)..."
+                                            style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -244,7 +276,13 @@
                         <div
                             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <h3 style="margin: 0;">點位清單</h3>
-                            <span id="progress-text" class="progress-badge">0/0</span>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <div style="display: flex; gap: 0.3rem;">
+                                    <button id="btn-copy-pts-active" class="btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">📋 複製</button>
+                                    <button id="btn-export-pts-active" class="btn-primary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: var(--acc-accent);">📤 存txt</button>
+                                </div>
+                                <span id="progress-text" class="progress-badge" style="margin-left: 0.5rem;">0/0</span>
+                            </div>
                         </div>
                         <ul id="active-points-list" class="points-list vertical-scroller" style="flex: 1;">
                             <!-- Injected point items -->
