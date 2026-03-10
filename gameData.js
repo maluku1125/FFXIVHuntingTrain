@@ -91,13 +91,12 @@ export const gameData = {
             points: [
                 { label: "A", x: 9.0, y: 16.5 },
                 { label: "B", x: 13.3, y: 13.3 },
-                { label: "C", x: 21.7, y: 28.4 },
-                { label: "D", x: 21.7, y: 33.3 },
-                { label: "E", x: 22.1, y: 28.2 },
-                { label: "F", x: 23.0, y: 18.8 },
-                { label: "G", x: 25.1, y: 23.3 },
-                { label: "H", x: 31.4, y: 23.2 },
-                { label: "I", x: 34.3, y: 6.5 }
+                { label: "C", x: 21.7, y: 33.3 },
+                { label: "D", x: 22.1, y: 28.2 },
+                { label: "E", x: 23.0, y: 18.8 },
+                { label: "F", x: 25.1, y: 23.3 },
+                { label: "G", x: 31.4, y: 23.2 },
+                { label: "H", x: 34.3, y: 6.5 }
             ]
         },
         "遺產之地": {
