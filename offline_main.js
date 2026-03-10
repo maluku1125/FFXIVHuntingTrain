@@ -82,20 +82,15 @@ async function init() {
                 const { data } = await supabase
                     .from('admins').select('id').eq('id', currentUser.id).maybeSingle();
                 isAdmin = !!data;
-            } catch (e) { console.warn('[init] admins check failed:', e); }
+            } catch (e) { /* ignore */ }
 
             updateAuthUI();
-
-            try {
-                await checkAndResumeConductorRoom();
-            } catch (e) { console.warn('[init] checkAndResumeConductorRoom failed:', e); }
+            try { await checkAndResumeConductorRoom(); } catch (e) { /* ignore */ }
         }
     } catch (e) {
         console.error('[init] unexpected error:', e);
     } finally {
-        // Always fetch rooms — even if session check or room resume threw
         fetchRooms();
-        // Start auto-refresh for home view
         if (homeRefreshInterval) clearInterval(homeRefreshInterval);
         homeRefreshInterval = setInterval(fetchRooms, 5000);
     }
