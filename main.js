@@ -1078,6 +1078,13 @@ document.addEventListener('DOMContentLoaded', () => {
     updateMapOptions();
     setTimeout(initMapInteractions, 100);
 
+    // Intercept map dropdown update for scouting map marker rendering
+    const _oldUpdateMonsterOptions = updateMonsterOptions;
+    updateMonsterOptions = function () {
+        if (typeof _oldUpdateMonsterOptions === 'function') _oldUpdateMonsterOptions();
+        window.renderMapMarkers();
+    };
+
     // --- Map Viewer Logic ---
     const viewerVersionSelect = document.getElementById('map-viewer-version');
     const viewerMapSelect = document.getElementById('map-viewer-map');
@@ -1728,11 +1735,6 @@ window.renderMapMarkers = function () {
     });
 }
 
-// Intercept map dropdown update to trigger render
-const _oldUpdateMonsterOptions = updateMonsterOptions;
-updateMonsterOptions = function () {
-    if (typeof _oldUpdateMonsterOptions === 'function') _oldUpdateMonsterOptions();
-    window.renderMapMarkers();
-}
+
 
 document.getElementById('input-point-name')?.addEventListener('change', window.renderMapMarkers);
