@@ -491,8 +491,8 @@ function updateActivePhaseUI() {
         const point = scoutingPoints[index];
         if (!point) return;
 
-        const rankStr = point.rank && point.rank !== '水晶' ? `${point.rank}怪 ` : '';
-        const targetStr = point.rank === '水晶' ? point.monster : `${rankStr}${point.monster}`;
+        const rankVal = point.rank && point.rank !== '水晶' ? point.rank : '';
+        const targetVal = point.monster;
         const posStr = `(X:${point.x}, Y:${point.y})`;
 
         const lines = [];
@@ -503,7 +503,8 @@ function updateActivePhaseUI() {
             if (template) {
                 lines.push(template
                     .replace(/<map>/g, point.mapName || '')
-                    .replace(/<target>/g, targetStr || '')
+                    .replace(/<rank>/g, rankVal)
+                    .replace(/<target>/g, targetVal || '')
                     .replace(/<pos>/g, posStr || ''));
             }
         }
@@ -623,19 +624,105 @@ window.renderScoutingPoints = () => {
                     </div>
                     <div style="color:var(--text-secondary); font-size: 0.85rem;">X:${escapeHTML(pt.x)} Y:${escapeHTML(pt.y)}</div>
                 </div>
-                <button class="btn-danger" style="padding: 0.5rem; font-size: 0.85rem; border-radius: 6px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 36px; height: 46px; line-height: 1.2;" onclick="window.removePoint(${pt.id})">
-                    <span>刪</span><span>除</span>
-                </button>
+                <div style="display: flex; gap: 0.4rem; align-items: center;">
+                    <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                        <button class="btn-secondary" style="padding: 0.2rem 0.4rem; font-size: 0.7rem; min-width: 24px; visibility: ${index === 0 ? 'hidden' : 'visible'}" onclick="window.movePointUp(${index})" title="上移">▲</button>
+                        <button class="btn-secondary" style="padding: 0.2rem 0.4rem; font-size: 0.7rem; min-width: 24px; visibility: ${index === scoutingPoints.length - 1 ? 'hidden' : 'visible'}" onclick="window.movePointDown(${index})" title="下移">▼</button>
+                    </div>
+                    <button id="btn-copy-scouting-pt-${index}" class="btn-primary" style="padding: 0.4rem 0.6rem; font-size: 0.8rem; border-radius: 6px; white-space: nowrap;" onclick="window.copyScoutingPointMacro(${index})">
+                        複製巨集
+                    </button>
+                    <button class="btn-danger" style="padding: 0.5rem; font-size: 0.85rem; border-radius: 6px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 36px; height: 46px; line-height: 1.2;" onclick="window.removePoint(${pt.id})">
+                        <span>刪</span><span>除</span>
+                    </button>
+                </div>
             `;
         list.appendChild(li);
     });
     document.getElementById('btn-start-train').disabled = scoutingPoints.length === 0;
+
+    // Sync scouting macros with saved values
+    [1, 2, 3, 4, 5].forEach(num => {
+        const monVal = localStorage.getItem('custom_macro_monster_' + num);
+        if (monVal !== null) {
+            const scoutMonEl = document.getElementById('scouting-macro-monster-' + num);
+            if (scoutMonEl) scoutMonEl.value = monVal;
+        }
+
+        const aetherVal = localStorage.getItem('custom_macro_aetheryte_' + num);
+        if (aetherVal !== null) {
+            const scoutAethEl = document.getElementById('scouting-macro-aetheryte-' + num);
+            if (scoutAethEl) scoutAethEl.value = aetherVal;
+        }
+    });
 };
 
 window.removePoint = (id) => {
     scoutingPoints = scoutingPoints.filter(p => p.id !== id);
     localStorage.setItem('draft_points_' + currentRoomId, JSON.stringify(scoutingPoints));
     window.renderScoutingPoints();
+};
+
+window.movePointUp = (index) => {
+    if (index <= 0) return;
+    const temp = scoutingPoints[index];
+    scoutingPoints[index] = scoutingPoints[index - 1];
+    scoutingPoints[index - 1] = temp;
+    localStorage.setItem('draft_points_' + currentRoomId, JSON.stringify(scoutingPoints));
+    window.renderScoutingPoints();
+};
+
+window.movePointDown = (index) => {
+    if (index >= scoutingPoints.length - 1) return;
+    const temp = scoutingPoints[index];
+    scoutingPoints[index] = scoutingPoints[index + 1];
+    scoutingPoints[index + 1] = temp;
+    localStorage.setItem('draft_points_' + currentRoomId, JSON.stringify(scoutingPoints));
+    window.renderScoutingPoints();
+};
+
+window.copyScoutingPointMacro = async (index) => {
+    const point = scoutingPoints[index];
+    if (!point) return;
+
+    const rankVal = point.rank && point.rank !== '水晶' ? point.rank : '';
+    const targetVal = point.monster;
+    const posStr = `(X:${point.x}, Y:${point.y})`;
+
+    const lines = [];
+    const prefix = point.rank === '水晶' ? 'scouting-macro-aetheryte-' : 'scouting-macro-monster-';
+    
+    for (let i = 1; i <= 5; i++) {
+        const el = document.getElementById(prefix + i);
+        if (!el) continue;
+        const template = el.value.trim();
+        if (template) {
+            lines.push(template
+                .replace(/<map>/g, point.mapName || '')
+                .replace(/<rank>/g, rankVal)
+                .replace(/<target>/g, targetVal || '')
+                .replace(/<pos>/g, posStr || ''));
+        }
+    }
+
+    if (lines.length === 0) return;
+    try {
+        await navigator.clipboard.writeText(lines.join('\n'));
+        const btn = document.getElementById(`btn-copy-scouting-pt-${index}`);
+        if (btn) {
+            const original = btn.innerText;
+            btn.innerText = '✅ copied';
+            btn.style.background = 'var(--acc-success)';
+            btn.style.borderColor = 'var(--acc-success)';
+            setTimeout(() => {
+                btn.innerText = original;
+                btn.style.background = '';
+                btn.style.borderColor = '';
+            }, 2000);
+        }
+    } catch (err) {
+        alert('複製失敗');
+    }
 };
 
 // ============================================================
@@ -1315,20 +1402,49 @@ document.addEventListener('DOMContentLoaded', () => {
         if (monEl) {
             monEl.addEventListener('input', (e) => {
                 localStorage.setItem('custom_macro_monster_' + num, e.target.value);
+                // Sync with scouting phase macro if exists
+                const scoutMon = document.getElementById('scouting-macro-monster-' + num);
+                if (scoutMon) scoutMon.value = e.target.value;
             });
         }
         if (aethEl) {
             aethEl.addEventListener('input', (e) => {
                 localStorage.setItem('custom_macro_aetheryte_' + num, e.target.value);
+                // Sync with scouting phase macro if exists
+                const scoutAeth = document.getElementById('scouting-macro-aetheryte-' + num);
+                if (scoutAeth) scoutAeth.value = e.target.value;
+            });
+        }
+
+        // Add listeners for scouting phase macro inputs
+        const scoutMonEl = document.getElementById('scouting-macro-monster-' + num);
+        const scoutAethEl = document.getElementById('scouting-macro-aetheryte-' + num);
+
+        if (scoutMonEl) {
+            scoutMonEl.addEventListener('input', (e) => {
+                localStorage.setItem('custom_macro_monster_' + num, e.target.value);
+                // Sync with active phase macro
+                const activeMon = document.getElementById('macro-monster-' + num);
+                if (activeMon) activeMon.value = e.target.value;
+            });
+        }
+        if (scoutAethEl) {
+            scoutAethEl.addEventListener('input', (e) => {
+                localStorage.setItem('custom_macro_aetheryte_' + num, e.target.value);
+                // Sync with active phase macro
+                const activeAeth = document.getElementById('macro-aetheryte-' + num);
+                if (activeAeth) activeAeth.value = e.target.value;
             });
         }
     });
 
-    document.getElementById('btn-export-macro').addEventListener('click', () => {
+    // --- Conductor: Macro Export/Import for Scouting Phase ---
+    const handleMacroExport = (isScouting) => {
+        const prefix = isScouting ? 'scouting-macro-' : 'macro-';
         const exportDataObj = { monster: [], aetheryte: [] };
         for (let i = 1; i <= 5; i++) {
-            exportDataObj.monster.push(document.getElementById('macro-monster-' + i).value || '');
-            exportDataObj.aetheryte.push(document.getElementById('macro-aetheryte-' + i).value || '');
+            exportDataObj.monster.push(document.getElementById(prefix + 'monster-' + i).value || '');
+            exportDataObj.aetheryte.push(document.getElementById(prefix + 'aetheryte-' + i).value || '');
         }
         
         const exportData = JSON.stringify(exportDataObj, null, 2);
@@ -1342,13 +1458,16 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        const btn = document.getElementById('btn-export-macro');
-        const original = btn.innerText;
-        btn.innerText = '✅ 已匯出';
-        setTimeout(() => btn.innerText = original, 2000);
-    });
+        const btnId = isScouting ? 'btn-scouting-export-macro' : 'btn-export-macro';
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            const original = btn.innerText;
+            btn.innerText = '✅ 已匯出';
+            setTimeout(() => btn.innerText = original, 2000);
+        }
+    };
 
-    document.getElementById('btn-import-macro').addEventListener('click', () => {
+    const handleMacroImport = (isScouting) => {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.txt';
@@ -1367,17 +1486,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         throw new Error('檔案內容格式不正確，不是有效的 JSON 格式');
                     }
 
-                    // Backward compatibility (if it's array of 5 items, apply to monster)
                     let monsterLines = [];
                     let aetheryteLines = ['', '', '', '', ''];
                     
                     if (Array.isArray(parsed) && parsed.length >= 5) {
                         monsterLines = parsed.slice(0, 5);
-                        // don't overwrite aetheryte lines with empty or fallback if they have existing, 
-                        // just use default empty or current for aetheryte
-                        for (let i = 1; i <= 5; i++) {
-                            aetheryteLines[i-1] = document.getElementById('macro-aetheryte-' + i).value || '';
-                        }
                     } else if (parsed && parsed.monster && parsed.aetheryte) {
                         monsterLines = parsed.monster;
                         aetheryteLines = parsed.aetheryte;
@@ -1389,17 +1502,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         const mVal = monsterLines[i - 1] || '';
                         const aVal = aetheryteLines[i - 1] || '';
                         
-                        document.getElementById('macro-monster-' + i).value = mVal;
                         localStorage.setItem('custom_macro_monster_' + i, mVal);
-                        
-                        document.getElementById('macro-aetheryte-' + i).value = aVal;
                         localStorage.setItem('custom_macro_aetheryte_' + i, aVal);
+
+                        const scoutMon = document.getElementById('scouting-macro-monster-' + i);
+                        const activeMon = document.getElementById('macro-monster-' + i);
+                        if (scoutMon) scoutMon.value = mVal;
+                        if (activeMon) activeMon.value = mVal;
+
+                        const scoutAeth = document.getElementById('scouting-macro-aetheryte-' + i);
+                        const activeAeth = document.getElementById('macro-aetheryte-' + i);
+                        if (scoutAeth) scoutAeth.value = aVal;
+                        if (activeAeth) activeAeth.value = aVal;
                     }
 
-                    const btn = document.getElementById('btn-import-macro');
-                    const original = btn.innerText;
-                    btn.innerText = '✅ 已匯入';
-                    setTimeout(() => btn.innerText = original, 2000);
+                    const btnId = isScouting ? 'btn-scouting-import-macro' : 'btn-import-macro';
+                    const btn = document.getElementById(btnId);
+                    if (btn) {
+                        const original = btn.innerText;
+                        btn.innerText = '✅ 已匯入';
+                        setTimeout(() => btn.innerText = original, 2000);
+                    }
                 } catch (err) {
                     alert('匯入失敗：' + err.message + '\n請確認您選擇了正確的 txt 檔案。');
                 }
@@ -1407,7 +1530,14 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.readAsText(file);
         };
         input.click();
-    });
+    };
+
+    document.getElementById('btn-export-macro').addEventListener('click', () => handleMacroExport(false));
+    document.getElementById('btn-scouting-export-macro')?.addEventListener('click', () => handleMacroExport(true));
+    document.getElementById('btn-import-macro').addEventListener('click', () => handleMacroImport(false));
+    document.getElementById('btn-scouting-import-macro')?.addEventListener('click', () => handleMacroImport(true));
+
+
 
     // --- Auth state listener (handles login / logout AFTER page load) ---
     supabase.auth.onAuthStateChange(async (event, session) => {

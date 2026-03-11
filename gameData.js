@@ -70,9 +70,8 @@ export const gameData = {
                 { label: "C", x: 21.7, y: 28.4 },
                 { label: "D", x: 23.4, y: 14.2 },
                 { label: "E", x: 24.6, y: 33.0 },
-                { label: "F", x: 26.2, y: 9.5 },
-                { label: "G", x: 29.7, y: 19.0 },
-                { label: "H", x: 33.1, y: 16.2 }
+                { label: "F", x: 29.7, y: 19.0 },
+                { label: "G", x: 33.1, y: 16.2 }
             ]
         },
         "夏勞尼荒野": {

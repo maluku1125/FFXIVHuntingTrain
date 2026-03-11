@@ -17,7 +17,7 @@
                 <h1 style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
                     FFXIV繁中<span class="logo-accent">狩獵車</span>
                     <span
-                        style="font-size: 0.4em; font-weight: normal; color: var(--text-secondary); opacity: 0.8; letter-spacing: 0.5px;">v1.2.2
+                        style="font-size: 0.4em; font-weight: normal; color: var(--text-secondary); opacity: 0.8; letter-spacing: 0.5px;">v1.2.3
                         made by 諭諭</span>
                 </h1>
             </div>
@@ -166,6 +166,59 @@
                             </select>
                             <button type="submit" class="btn-primary" style="width: 100%;">新增點位</button>
                         </form>
+
+                        <div class="macro-container"
+                            style="margin-top: 1.5rem; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 1rem; border: 1px solid var(--border-color);">
+                            <h4
+                                style="margin: 0 0 0.8rem 0; font-size: 0.95rem; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center;">
+                                遊戲內巨集模板
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button id="btn-scouting-import-macro" class="btn-secondary"
+                                        style="padding: 0.3rem 0.8rem; font-size: 0.8rem;">📥 匯入</button>
+                                    <button id="btn-scouting-export-macro" class="btn-secondary"
+                                        style="padding: 0.3rem 0.8rem; font-size: 0.8rem;">📤 匯出</button>
+                                </div>
+                            </h4>
+                            <p
+                                style="font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 0.8rem 0; line-height: 1.4;">
+                                支援變數：<code>&lt;map&gt;</code>(地圖)、<code>&lt;rank&gt;</code>(等級)、<code>&lt;target&gt;</code>(名稱)、<code>&lt;pos&gt;</code>(座標)。<br>與開車階段共用設定。
+                            </p>
+
+                            <div style="margin-bottom: 1rem;">
+                                <h5 style="color: var(--acc-danger); margin-bottom: 0.4rem;">▶ 怪物用模板</h5>
+                                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                                    <input type="text" id="scouting-macro-monster-1"
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;"
+                                        value="/sh 下一站為： <map> <target> 座標：<pos>">
+                                    <input type="text" id="scouting-macro-monster-2"
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;"
+                                        value="/y 下一站為： <map> <target> 座標：<pos>">
+                                    <input type="text" id="scouting-macro-monster-3" placeholder="自訂巨集內容 (可留空)..."
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                    <input type="text" id="scouting-macro-monster-4" placeholder="自訂巨集內容 (可留空)..."
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                    <input type="text" id="scouting-macro-monster-5" placeholder="自訂巨集內容 (可留空)..."
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                </div>
+                            </div>
+
+                            <div>
+                                <h5 style="color: #0ea5e9; margin-bottom: 0.4rem;">▶ 水晶用模板</h5>
+                                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                                    <input type="text" id="scouting-macro-aetheryte-1"
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;"
+                                        value="/sh 傳送至水晶： <target>">
+                                    <input type="text" id="scouting-macro-aetheryte-2" placeholder="自訂巨集內容 (可留空)..."
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                    <input type="text" id="scouting-macro-aetheryte-3" placeholder="自訂巨集內容 (可留空)..."
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                    <input type="text" id="scouting-macro-aetheryte-4" placeholder="自訂巨集內容 (可留空)..."
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                    <input type="text" id="scouting-macro-aetheryte-5" placeholder="自訂巨集內容 (可留空)..."
+                                        style="background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 0.6rem; border-radius: 4px; font-size: 0.85rem; outline: none;">
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="card list-panel" style="display: flex; flex-direction: column;">
@@ -235,7 +288,7 @@
                                 </h4>
                                 <p
                                     style="font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 0.8rem 0; line-height: 1.4;">
-                                    支援變數：<code>&lt;map&gt;</code>(地圖)、<code>&lt;target&gt;</code>(名稱)、<code>&lt;pos&gt;</code>(座標)。<br>系統自動記憶您填寫的格式。
+                                    支援變數：<code>&lt;map&gt;</code>(地圖)、<code>&lt;rank&gt;</code>(等級)、<code>&lt;target&gt;</code>(名稱)、<code>&lt;pos&gt;</code>(座標)。<br>系統自動記憶您填寫的格式。
                                 </p>
 
                                 <div style="margin-bottom: 1rem;">
