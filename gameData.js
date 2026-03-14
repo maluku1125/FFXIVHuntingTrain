@@ -21,9 +21,8 @@ export const gameData = {
                 { label: "C", x: 15.7, y: 24.2 },
                 { label: "D", x: 19.1, y: 14.2 },
                 { label: "E", x: 21.9, y: 20.9 },
-                { label: "F", x: 26.0, y: 27.9 },
-                { label: "G", x: 28.1, y: 22.9 },
-                { label: "H", x: 28.9, y: 9.4 },
+                { label: "F", x: 28.1, y: 22.9 },
+                { label: "G", x: 28.9, y: 9.4 },
             ]
         },
         "克札瑪烏卡濕地": {
@@ -133,8 +132,8 @@ export const gameData = {
                 { name: "水晶化身之王", rank: "SS" }
             ],
             aetherytes: [
-                { name: "億之節點", x: 16.4, y: 13.6 },
-                { name: "風之節點", x: 21.5, y: 37.5 },
+                { name: "風之節點", x: 16.4, y: 13.6 },
+                { name: "憶之節點", x: 21.5, y: 37.5 },
                 { name: "火之節點", x: 34.6, y: 15.8 }
             ],
             points: [

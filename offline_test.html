@@ -330,10 +330,21 @@
                     </div>
 
                     <div class="card list-panel" style="display: flex; flex-direction: column;">
-                        <!-- 移至右側上方的地圖預覽縮小版 -->
-                        <div class="map-view-square"
-                            style="width: 100%; max-width: 250px; margin: 0 auto 1.5rem auto; border-radius: 8px;">
-                            <img id="active-map-img" src="" alt="地圖" style="display:none; border-radius: 8px;">
+                        <!-- 移至右側上方的地圖預覽並排版 -->
+                        <div class="active-maps-container" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                            <div class="map-preview-col" style="flex: 1;">
+                                <p style="text-align: center; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.3rem;">當前站</p>
+                                <div class="map-view-square" style="border-radius: 8px;">
+                                    <img id="active-map-img" src="" alt="當前站地圖" style="display:none; border-radius: 8px;">
+                                </div>
+                            </div>
+                            <div class="map-preview-col" style="flex: 1;">
+                                <p style="text-align: center; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.3rem;">下一站</p>
+                                <div class="map-view-square" style="border-radius: 8px;">
+                                    <img id="next-map-img" src="" alt="下一站地圖" style="display:none; border-radius: 8px;">
+                                    <div id="next-map-placeholder" class="placeholder" style="font-size: 0.8rem;">無下一站</div>
+                                </div>
+                            </div>
                         </div>
 
                         <div

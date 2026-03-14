@@ -411,6 +411,36 @@ function renderRoomCard(container, room, totalPoints) {
     container.appendChild(card);
 }
 
+// --- Helper to render map image and destination ping ---
+function renderMapWithPing(point, imgElement, placeholderElement) {
+    if (!imgElement) return;
+
+    const mapData = gameData[point.version]?.[point.mapName];
+    if (mapData && mapData.mapImage) {
+        imgElement.src = mapData.mapImage;
+        imgElement.style.display = 'block';
+        if (placeholderElement) placeholderElement.style.display = 'none';
+
+        let ping = imgElement.parentElement.querySelector('.destination-ping');
+        if (!ping) {
+            ping = document.createElement('div');
+            ping.className = 'destination-ping';
+            imgElement.parentElement.appendChild(ping);
+        }
+        let x = parseFloat(point.x), y = parseFloat(point.y);
+        ping.style.left = (((x - 1) / 41) * 100) + '%';
+        ping.style.top = (((y - 1) / 41) * 100) + '%';
+    } else {
+        imgElement.style.display = 'none';
+        if (placeholderElement) {
+            placeholderElement.style.display = 'block';
+            placeholderElement.innerText = point.mapName === '行程結束' ? '行程結束' : '地圖未載入';
+        }
+        const oldPing = imgElement.parentElement.querySelector('.destination-ping');
+        if (oldPing) oldPing.remove();
+    }
+}
+
 // ============================================================
 // Active phase UI (conductor)
 // ============================================================
@@ -570,27 +600,19 @@ function updateActivePhaseUI() {
         });
     }
 
-    // Populate Map Image & Ping overlay
+    // Populate Map Image & Ping overlay (Current & Next)
     const activeMapImg = document.getElementById('active-map-img');
-    const activeMapData = gameData[pt.version]?.[pt.mapName];
-    if (activeMapData && activeMapData.mapImage) {
-        activeMapImg.src = activeMapData.mapImage;
-        activeMapImg.style.display = 'block';
+    renderMapWithPing(pt, activeMapImg);
 
-        let ping = activeMapImg.parentElement.querySelector('.destination-ping');
-        if (!ping) {
-            ping = document.createElement('div');
-            ping.className = 'destination-ping';
-            activeMapImg.parentElement.appendChild(ping);
-        }
-        let x = parseFloat(pt.x), y = parseFloat(pt.y);
-        ping.style.left = (((x - 1) / 41) * 100) + '%';
-        ping.style.top = (((y - 1) / 41) * 100) + '%';
-    } else {
-        if (activeMapImg) activeMapImg.style.display = 'none';
-        const oldPing = activeMapImg?.parentElement?.querySelector('.destination-ping');
-        if (oldPing) oldPing.remove();
-    }
+    const nextPt = (currentPointIndex >= 0 && currentPointIndex < scoutingPoints.length - 1)
+        ? scoutingPoints[currentPointIndex + 1]
+        : (currentPointIndex < 0 && scoutingPoints.length > 0)
+            ? scoutingPoints[0]
+            : { mapName: '行程結束', monster: '', rank: '', x: '-', y: '-', version: '' };
+
+    const nextMapImg = document.getElementById('next-map-img');
+    const nextPlaceholder = document.getElementById('next-map-placeholder');
+    renderMapWithPing(nextPt, nextMapImg, nextPlaceholder);
 }
 
 // ============================================================

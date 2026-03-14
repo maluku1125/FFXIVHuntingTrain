@@ -574,26 +574,50 @@ function updateActivePhaseUI() {
         });
     }
 
-    // Populate Map Image & Ping overlay
+    // Populate Map Images & Ping overlays
     const activeMapImg = document.getElementById('active-map-img');
-    const activeMapData = gameData[pt.version]?.[pt.mapName];
-    if (activeMapData && activeMapData.mapImage) {
-        activeMapImg.src = activeMapData.mapImage;
-        activeMapImg.style.display = 'block';
+    const nextMapImg = document.getElementById('next-map-img');
+    const nextMapPlaceholder = document.getElementById('next-map-placeholder');
 
-        let ping = activeMapImg.parentElement.querySelector('.destination-ping');
-        if (!ping) {
-            ping = document.createElement('div');
-            ping.className = 'destination-ping';
-            activeMapImg.parentElement.appendChild(ping);
+    const renderMapWithPing = (imgEl, point) => {
+        const mapData = gameData[point?.version]?.[point?.mapName];
+        if (mapData && mapData.mapImage) {
+            imgEl.src = mapData.mapImage;
+            imgEl.style.display = 'block';
+
+            let ping = imgEl.parentElement.querySelector('.destination-ping');
+            if (!ping) {
+                ping = document.createElement('div');
+                ping.className = 'destination-ping';
+                imgEl.parentElement.appendChild(ping);
+            }
+            let x = parseFloat(point.x), y = parseFloat(point.y);
+            ping.style.left = (((x - 1) / 41) * 100) + '%';
+            ping.style.top = (((y - 1) / 41) * 100) + '%';
+            return true;
+        } else {
+            imgEl.style.display = 'none';
+            const oldPing = imgEl.parentElement.querySelector('.destination-ping');
+            if (oldPing) oldPing.remove();
+            return false;
         }
-        let x = parseFloat(pt.x), y = parseFloat(pt.y);
-        ping.style.left = (((x - 1) / 41) * 100) + '%';
-        ping.style.top = (((y - 1) / 41) * 100) + '%';
-    } else {
-        if (activeMapImg) activeMapImg.style.display = 'none';
-        const oldPing = activeMapImg?.parentElement?.querySelector('.destination-ping');
-        if (oldPing) oldPing.remove();
+    };
+
+    // Current Station Map
+    renderMapWithPing(activeMapImg, pt);
+
+    // Next Station Map
+    const nextPt = scoutingPoints[currentPointIndex + 1];
+    const hasNextMap = nextPt ? renderMapWithPing(nextMapImg, nextPt) : false;
+    
+    if (nextMapPlaceholder) {
+        if (hasNextMap) {
+            nextMapPlaceholder.style.display = 'none';
+        } else {
+            nextMapImg.style.display = 'none';
+            nextMapPlaceholder.style.display = 'block';
+            nextMapPlaceholder.innerText = nextPt ? '無地圖資料' : '行程結束';
+        }
     }
 }
 
