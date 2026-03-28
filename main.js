@@ -750,7 +750,7 @@ window.renderScoutingPoints = () => {
 };
 
 window.removePoint = (id) => {
-    scoutingPoints = scoutingPoints.filter(p => p.id !== id);
+    scoutingPoints = scoutingPoints.filter(p => String(p.id) !== String(id));
     localStorage.setItem('draft_points_' + currentRoomId, JSON.stringify(scoutingPoints));
     window.renderScoutingPoints();
     if (typeof window.renderMapMarkers === 'function') window.renderMapMarkers();
