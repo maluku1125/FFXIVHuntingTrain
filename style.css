@@ -411,6 +411,12 @@ input:focus {
     box-shadow: 0 0 12px var(--acc-danger);
 }
 
+.map-marker.added {
+    background: var(--acc-success);
+    z-index: 25;
+    box-shadow: 0 0 8px var(--acc-success);
+}
+
 .map-marker.aetheryte {
     background: #0ea5e9;
     border-radius: 4px;

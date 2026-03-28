@@ -149,25 +149,18 @@ async function checkAndResumeConductorRoom() {
 // ============================================================
 function getFormattedPointsList() {
     if (!scoutingPoints || scoutingPoints.length === 0) return '';
-    
-    let output = '【 狩獵車點位清單 】\n';
-    
-    const titleEl = document.getElementById('conductor-dashboard-title');
-    if (titleEl && titleEl.innerText) {
-        output += `車次：${titleEl.innerText.replace('車長後台 - ', '')}\n`;
-    }
-    
-    output += `共 ${scoutingPoints.length} 個點位\n`;
-    output += '-'.repeat(30) + '\n';
-    
-    scoutingPoints.forEach((pt, index) => {
-        const rankStr = pt.rank && pt.rank !== '水晶' ? `[${pt.rank}怪]` : '';
-        const targetStr = pt.rank === '水晶' ? `(水晶) ${pt.monster}` : `${rankStr} ${pt.monster}`;
-        // Pad the index slightly for visually pleasing output
-        const numStr = String(index + 1).padStart(2, '0');
-        output += `${numStr}. ${pt.mapName} - ${targetStr} (X:${pt.x}, Y:${pt.y})\n`;
+
+    let output = '';
+
+    scoutingPoints.forEach((pt) => {
+        const mapData = gameData[pt.version]?.[pt.mapName];
+        const mapNameEn = mapData?.mapNameEn || pt.mapName;
+        const monsterData = mapData?.monsters?.find(m => m.name === pt.monster);
+        const monsterEn = monsterData?.nameEn || pt.monster;
+
+        output += `${monsterEn} @ ${mapNameEn} ( ${pt.x} , ${pt.y} )\n`;
     });
-    
+
     return output;
 }
 
@@ -226,50 +219,47 @@ document.getElementById('btn-import-pts').addEventListener('click', () => {
     input.onchange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = (event) => {
             const text = event.target.result;
             if (!text) return;
-            
             const lines = text.split(/\r?\n/);
             const newPoints = [];
-            
-            // Format match: "01. Shaaloani - [A怪] Rax (X:12.5, Y:15.0)" OR "02. Tural - (水晶) Tural (X:10, Y:10)"
-            const pointRegex = /^\d+\.\s+(.+?)\s+-\s+(?:\[(.*?)怪\]|\((水晶)\))\s+(.+?)\s+\(X:([\d.]+),\s+Y:([\d.]+)\)/;
-            
+            const pointRegex = /^\d+\.\s+(.+?)\s+-\s+(?:\[(.+?)怪\]|\((水晶)\))\s+(.+?)\s+\(X:([\d.]+),\s+Y:([\d.]+)\)/;
+            const enRegex = /^(.+?)\s*@\s*(.+?)\s*\(\s*([\d.]+)\s*,\s*([\d.]+)\s*\)/;
+            const currentVersion = document.getElementById('input-point-version').value;
+            const { mapLookup, monsterLookup } = buildEnglishLookup();
             for (const line of lines) {
-                const match = line.match(pointRegex);
-                if (match) {
-                    const mapName = match[1].trim();
-                    const monsterRank = match[2] || match[3]; // group 2 = normal rank (A/B/S), group 3 = 水晶
-                    const monsterName = match[4].trim();
-                    const ptX = match[5];
-                    const ptY = match[6];
-                    
-                    newPoints.push({
-                        id: crypto.randomUUID(),
-                        version: document.getElementById('input-point-version').value, // Use current selected version
-                        mapName: mapName,
-                        monster: monsterName,
-                        rank: monsterRank,
-                        x: ptX,
-                        y: ptY
-                    });
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+                const enMatch = trimmed.match(enRegex);
+                if (enMatch) {
+                    // Strip instance markers, invisible chars, normalize apostrophes
+                    const stripSuffix = s => s
+                        .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/g, '') // invisible
+                        .replace(/[‘’‚‛ʼˈʹ]/g, "'")          // curly → straight
+                        .trim()
+                        .replace(/\s+instance\s+\w+\s*$/i, '')                 // Instance ONE/TWO
+                        .replace(/\s*[(（][ivxIVX1-9]{1,3}[)）]\s*$/, '')      // (i)(ii)(1)
+                        .replace(/\s*[①-⑨⑴-⑼⓪❶-❾㊀-㊉㊱-㊿\uE0B1-\uE0B9]\s*$/, '') // ①⑴❶, 
+                        .trim();
+                    const mapFound = mapLookup[stripSuffix(enMatch[2]).toLowerCase()];
+                    const monsterFound = monsterLookup[enMatch[1].trim().toLowerCase()];
+                    newPoints.push({ id: crypto.randomUUID(), version: mapFound?.version || currentVersion, mapName: mapFound?.zhName || stripSuffix(enMatch[2]), monster: monsterFound?.zhName || enMatch[1].trim(), rank: monsterFound?.rank || '', x: enMatch[3], y: enMatch[4] });
+                    continue;
                 }
+                const match = line.match(pointRegex);
+                if (match) newPoints.push({ id: crypto.randomUUID(), version: currentVersion, mapName: match[1].trim(), monster: match[4].trim(), rank: match[2] || match[3], x: match[5], y: match[6] });
             }
-            
             if (newPoints.length > 0) {
                 if (confirm(`偵測到 ${newPoints.length} 個有效點位，是否要覆蓋目前的準備清單？`)) {
                     scoutingPoints = newPoints;
-                    if (currentRoomId) {
-                        localStorage.setItem('draft_points_' + currentRoomId, JSON.stringify(scoutingPoints));
-                    }
+                    if (currentRoomId) localStorage.setItem('draft_points_' + currentRoomId, JSON.stringify(scoutingPoints));
                     window.renderScoutingPoints();
-                    
+                    if (typeof window.renderMapMarkers === 'function') window.renderMapMarkers();
                     const btn = document.getElementById('btn-import-pts');
                     const original = btn.innerText;
-                    btn.innerText = '✅ 已匯入';
+                    btn.innerText = ' 已匯入';
                     setTimeout(() => btn.innerText = original, 2000);
                 }
             } else {
@@ -280,6 +270,40 @@ document.getElementById('btn-import-pts').addEventListener('click', () => {
     };
     input.click();
 });
+
+// ============================================================
+// JSON Export / Import (with English names)
+// ============================================================
+
+function buildEnglishLookup() {
+    const mapLookup = {};
+    const monsterLookup = {};
+    // Normalize curly apostrophes → straight for robust matching
+    const nk = s => s.toLowerCase()
+        .replace(/[‘’‚‛ʼˈʹ]/g, "'");
+    for (const [version, maps] of Object.entries(gameData)) {
+        for (const [zhMapName, mapData] of Object.entries(maps)) {
+            if (mapData.mapNameEn) mapLookup[nk(mapData.mapNameEn)] = { zhName: zhMapName, version };
+            for (const monster of (mapData.monsters || [])) {
+                if (monster.nameEn) monsterLookup[nk(monster.nameEn)] = { zhName: monster.name, rank: monster.rank };
+            }
+        }
+    }
+    return { mapLookup, monsterLookup };
+}
+
+function getPointsAsJSON() {
+    if (!scoutingPoints || scoutingPoints.length === 0) return null;
+    const arr = scoutingPoints.map(pt => {
+        const mapData = gameData[pt.version]?.[pt.mapName];
+        const mapNameEn = mapData?.mapNameEn || '';
+        const monsterData = mapData?.monsters?.find(m => m.name === pt.monster);
+        const monsterEn = monsterData?.nameEn || '';
+        return { monster: pt.monster, monsterEn, mapName: pt.mapName, mapNameEn, rank: pt.rank, x: pt.x, y: pt.y, version: pt.version };
+    });
+    return JSON.stringify(arr, null, 2);
+}
+
 
 // ============================================================
 // Room list (home lobby)
@@ -650,7 +674,7 @@ window.renderScoutingPoints = () => {
                     <button id="btn-copy-scouting-pt-${index}" class="btn-primary" style="padding: 0.4rem 0.6rem; font-size: 0.8rem; border-radius: 6px; white-space: nowrap;" onclick="window.copyScoutingPointMacro(${index})">
                         複製巨集
                     </button>
-                    <button class="btn-danger" style="padding: 0.5rem; font-size: 0.85rem; border-radius: 6px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 36px; height: 46px; line-height: 1.2;" onclick="window.removePoint(${pt.id})">
+                    <button class="btn-danger" style="padding: 0.5rem; font-size: 0.85rem; border-radius: 6px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 36px; height: 46px; line-height: 1.2;" onclick="window.removePoint('${pt.id}')">
                         <span>刪</span><span>除</span>
                     </button>
                 </div>
@@ -679,6 +703,7 @@ window.removePoint = (id) => {
     scoutingPoints = scoutingPoints.filter(p => p.id !== id);
     localStorage.setItem('draft_points_' + currentRoomId, JSON.stringify(scoutingPoints));
     window.renderScoutingPoints();
+    if (typeof window.renderMapMarkers === 'function') window.renderMapMarkers();
 };
 
 window.movePointUp = (index) => {
@@ -688,6 +713,7 @@ window.movePointUp = (index) => {
     scoutingPoints[index - 1] = temp;
     localStorage.setItem('draft_points_' + currentRoomId, JSON.stringify(scoutingPoints));
     window.renderScoutingPoints();
+    if (typeof window.renderMapMarkers === 'function') window.renderMapMarkers();
 };
 
 window.movePointDown = (index) => {
@@ -697,6 +723,7 @@ window.movePointDown = (index) => {
     scoutingPoints[index + 1] = temp;
     localStorage.setItem('draft_points_' + currentRoomId, JSON.stringify(scoutingPoints));
     window.renderScoutingPoints();
+    if (typeof window.renderMapMarkers === 'function') window.renderMapMarkers();
 };
 
 window.copyScoutingPointMacro = async (index) => {
@@ -1321,6 +1348,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pointSelect.value = savedCoordValue;
 
         window.renderScoutingPoints();
+        if (typeof window.renderMapMarkers === 'function') window.renderMapMarkers();
     });
 
     // --- Conductor: start train ---
@@ -1717,7 +1745,19 @@ window.renderMapMarkers = function () {
             window.renderMapMarkers();
         });
 
-        if (pointSelect.value === `${pt.x},${pt.y}`) marker.classList.add('selected');
+        // Check if this point is currently selected in the dropdown
+        if (pointSelect.value === `${pt.x},${pt.y}`) {
+            marker.classList.add('selected');
+        } else if (scoutingPoints.some(sp => 
+            sp.mapName?.trim() === map.trim() && 
+            sp.version?.trim() === version.trim() && 
+            Math.abs(parseFloat(sp.x) - parseFloat(pt.x)) <= 1.5 && 
+            Math.abs(parseFloat(sp.y) - parseFloat(pt.y)) <= 1.5
+        )) {
+            // Check if this point is already added to the scouting list (with a 1.5 coordinate variance)
+            marker.classList.add('added');
+        }
+
         container.appendChild(marker);
     });
 

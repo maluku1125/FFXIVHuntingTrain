@@ -5,11 +5,12 @@ export const gameData = {
     "7.0": {
         "奧闊帕恰山": {
             mapImage: "maps/奧闊帕恰山.png",
+            mapNameEn: "Urqopacha",
             monsters: [
-                { name: "內丘奇霍", rank: "A" },
-                { name: "女王鷹蜂", rank: "A" },
-                { name: "厭忌之人奇里格", rank: "S" },
-                { name: "水晶化身之王", rank: "SS" }
+                { name: "內丘奇霍", nameEn: "Nechuciho", rank: "A" },
+                { name: "女王鷹蜂", nameEn: "Queen hawk", rank: "A" },
+                { name: "厭忌之人奇里格", nameEn: "Kirlirger the Abhorrent", rank: "S" },
+                { name: "水晶化身之王", nameEn: "arch aethereater", rank: "SS" }
             ],
             aetherytes: [
                 { name: "瓦丘恩佩洛", x: 28.1, y: 13.2 },
@@ -27,11 +28,12 @@ export const gameData = {
         },
         "克札瑪烏卡濕地": {
             mapImage: "maps/克札瑪烏卡濕地.png",
+            mapNameEn: "Kozama'uka",
             monsters: [
-                { name: "驚雨蟾蜍", rank: "A" },
-                { name: "普庫恰", rank: "A" },
-                { name: "伊努索奇", rank: "S" },
-                { name: "水晶化身之王", rank: "SS" }
+                { name: "驚雨蟾蜍", nameEn: "The raintriller", rank: "A" },
+                { name: "普庫恰", nameEn: "Pkuucha", rank: "A" },
+                { name: "伊努索奇", nameEn: "Ihnuxokiy", rank: "S" },
+                { name: "水晶化身之王", nameEn: "arch aethereater", rank: "SS" }
             ],
             aetherytes: [
                 { name: "土陶郡", x: 11.9, y: 27.7 },
@@ -53,11 +55,12 @@ export const gameData = {
         },
         "亞克特爾樹海": {
             mapImage: "maps/亞克特爾樹海.png",
+            mapNameEn: "Yak T'el",
             monsters: [
-                { name: "幻煌鳥", rank: "A" },
-                { name: "血鳴鼠", rank: "A" },
-                { name: "內尤佐緹", rank: "S" },
-                { name: "水晶化身之王", rank: "SS" }
+                { name: "幻煌鳥", nameEn: "Starcrier", rank: "A" },
+                { name: "血鳴鼠", nameEn: "Rrax yity'a", rank: "A" },
+                { name: "內尤佐緹", nameEn: "Neyoozoteel", rank: "S" },
+                { name: "水晶化身之王", nameEn: "arch aethereater", rank: "SS" }
             ],
             aetherytes: [
                 { name: "紅豹村", x: 13.5, y: 12.8 },
@@ -76,11 +79,12 @@ export const gameData = {
         },
         "夏勞尼荒野": {
             mapImage: "maps/夏勞尼荒野.png",
+            mapNameEn: "Shaaloani",
             monsters: [
-                { name: "艾海海陶瓦泡", rank: "A" },
-                { name: "凱海尼海亞麥尤伊", rank: "A" },
-                { name: "山謝亞", rank: "S" },
-                { name: "水晶化身之王", rank: "SS" }
+                { name: "艾海海陶瓦泡", nameEn: "Yehehetoaua'pyo", rank: "A" },
+                { name: "凱海尼海亞麥尤伊", nameEn: "Keheniheyamewi", rank: "A" },
+                { name: "山謝亞", nameEn: "Sansheya", rank: "S" },
+                { name: "水晶化身之王", nameEn: "arch aethereater", rank: "SS" }
             ],
             aetherytes: [
                 { name: "謝申內青磷泉", x: 15.7, y: 19.2 },
@@ -101,11 +105,12 @@ export const gameData = {
         },
         "遺產之地": {
             mapImage: "maps/遺產之地.png",
+            mapNameEn: "Heritage Found",
             monsters: [
-                { name: "海休瓦拉", rank: "A" },
-                { name: "多變裝置", rank: "A" },
-                { name: "先驅勇士阿提卡斯", rank: "S" },
-                { name: "水晶化身之王", rank: "SS" }
+                { name: "海休瓦拉", nameEn: "Heshuala", rank: "A" },
+                { name: "多變裝置", nameEn: "Urna variabilis", rank: "A" },
+                { name: "先驅勇士阿提卡斯", nameEn: "Atticus the Primogenitor", rank: "S" },
+                { name: "水晶化身之王", nameEn: "arch aethereater", rank: "SS" }
             ],
             aetherytes: [
                 { name: "邊郊鎮", x: 17.1, y: 9.8 },
@@ -125,11 +130,12 @@ export const gameData = {
         },
         "憶想之地": {
             mapImage: "maps/憶想之地.png",
+            mapNameEn: "Living Memory",
             monsters: [
-                { name: "清掃者薩莉", rank: "A" },
-                { name: "貓眼", rank: "A" },
-                { name: "天氣預報機器人", rank: "S" },
-                { name: "水晶化身之王", rank: "SS" }
+                { name: "清掃者薩莉", nameEn: "Sally the sweeper", rank: "A" },
+                { name: "貓眼", nameEn: "Cat's eye", rank: "A" },
+                { name: "天氣預報機器人", nameEn: "The Forecaster", rank: "S" },
+                { name: "水晶化身之王", nameEn: "arch aethereater", rank: "SS" }
             ],
             aetherytes: [
                 { name: "風之節點", x: 16.4, y: 13.6 },
@@ -142,8 +148,7 @@ export const gameData = {
                 { label: "C", x: 12.4, y: 37.7 },
                 { label: "D", x: 12.8, y: 27.7 },
                 { label: "E", x: 18.8, y: 20.2 },
-                { label: "F", x: 26.9, y: 31.3 },
-                { label: "H", x: 34.3, y: 26.3 }
+                { label: "F", x: 26.9, y: 31.3 }
             ]
         }
     },
@@ -151,11 +156,12 @@ export const gameData = {
     "6.0": {
         "迷津": {
             mapImage: "maps/迷津.png",
+            mapNameEn: "Labyrinthos",
             monsters: [
-                { name: "胡睹", rank: "A" },
-                { name: "斯圖希", rank: "A" },
-                { name: "布弗魯", rank: "S" },
-                { name: "克爾", rank: "SS" }
+                { name: "胡睹", nameEn: "Hulder", rank: "A" },
+                { name: "斯圖希", nameEn: "Storsie", rank: "A" },
+                { name: "布弗魯", nameEn: "Burfurlur the Canny", rank: "S" },
+                { name: "克爾", nameEn: "Ker", rank: "SS" }
             ],
             aetherytes: [
                 { name: "無路總部", x: 6.7, y: 27.6 },
@@ -177,11 +183,12 @@ export const gameData = {
         },
         "薩維奈島": {
             mapImage: "maps/薩維奈島.png",
+            mapNameEn: "Thavnair",
             monsters: [
-                { name: "須羯裡婆", rank: "A" },
-                { name: "尤蘭", rank: "A" },
-                { name: "頗胝迦", rank: "S" },
-                { name: "克爾", rank: "SS" }
+                { name: "須羯裡婆", nameEn: "Sugriva", rank: "A" },
+                { name: "尤蘭", nameEn: "Yilan", rank: "A" },
+                { name: "頗胝迦", nameEn: "Sphatika", rank: "S" },
+                { name: "克爾", nameEn: "Ker", rank: "SS" }
             ],
             aetherytes: [
                 { name: "代米爾遺烈鄉", x: 10.9, y: 22.1 },
@@ -202,11 +209,12 @@ export const gameData = {
         },
         "加雷馬": {
             mapImage: "maps/加雷馬.png",
+            mapNameEn: "Garlemald",
             monsters: [
-                { name: "黑楊樹精", rank: "A" },
-                { name: "密涅瓦", rank: "A" },
-                { name: "阿姆斯特朗", rank: "S" },
-                { name: "克爾", rank: "SS" }
+                { name: "黑楊樹精", nameEn: "Aegeiros", rank: "A" },
+                { name: "密涅瓦", nameEn: "Minerva", rank: "A" },
+                { name: "阿姆斯特朗", nameEn: "Armstrong", rank: "S" },
+                { name: "克爾", nameEn: "Ker", rank: "SS" }
             ],
             aetherytes: [
                 { name: "碎離營地", x: 13.3, y: 31.2 },
@@ -226,11 +234,12 @@ export const gameData = {
         },
         "嘆息海": {
             mapImage: "maps/嘆息海.png",
+            mapNameEn: "Mare Lamentorum",
             monsters: [
-                { name: "慕斯公主", rank: "A" },
-                { name: "月面仙人刺女王", rank: "A" },
-                { name: "沉思之物", rank: "S" },
-                { name: "克爾", rank: "SS" }
+                { name: "慕斯公主", nameEn: "Mousse princess", rank: "A" },
+                { name: "月面仙人刺女王", nameEn: "Lunatender queen", rank: "A" },
+                { name: "沉思之物", nameEn: "Ruminator", rank: "S" },
+                { name: "克爾", nameEn: "Ker", rank: "SS" }
             ],
             aetherytes: [
                 { name: "淚灣", x: 10.0, y: 34.5 },
@@ -251,11 +260,12 @@ export const gameData = {
         },
         "厄爾庇斯": {
             mapImage: "maps/厄爾庇斯.png",
+            mapNameEn: "Elpis",
             monsters: [
-                { name: "瓣齒鯊", rank: "A" },
-                { name: "固蘭蓋奇", rank: "A" },
-                { name: "俄菲翁尼厄斯", rank: "S" },
-                { name: "克爾", rank: "SS" }
+                { name: "瓣齒鯊", nameEn: "Petalodus", rank: "A" },
+                { name: "固蘭蓋奇", nameEn: "Gurangatch", rank: "A" },
+                { name: "俄菲翁尼厄斯", nameEn: "Ophioneus", rank: "S" },
+                { name: "克爾", nameEn: "Ker", rank: "SS" }
             ],
             aetherytes: [
                 { name: "十二奇園", x: 8.6, y: 32.6 },
@@ -278,11 +288,12 @@ export const gameData = {
         },
         "天外天垓": {
             mapImage: "maps/天外天垓.png",
+            mapNameEn: "Ultima Thule",
             monsters: [
-                { name: "伊塔總領", rank: "A" },
-                { name: "凡艾爾", rank: "A" },
-                { name: "狹縫", rank: "S" },
-                { name: "克爾", rank: "SS" }
+                { name: "伊塔總領", nameEn: "Arch-eta", rank: "A" },
+                { name: "凡艾爾", nameEn: "Fan ail", rank: "A" },
+                { name: "狹縫", nameEn: "Narrow-rift", rank: "S" },
+                { name: "克爾", nameEn: "Ker", rank: "SS" }
             ],
             aetherytes: [
                 { name: "半途終旅", x: 10.5, y: 27.0 },
